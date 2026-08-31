@@ -1,4 +1,7 @@
-node_modules
-
-files/*
+node_modules/
+*.log
+*.tgz
 .env
+# never commit a wallet
+*key.json
+!vectors/vectors.json
