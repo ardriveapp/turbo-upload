@@ -12,6 +12,8 @@ are `node:crypto` and `node:buffer`.
 npm install @ardrive/turbo-upload
 ```
 
+Runnable examples: [`examples/`](examples/).
+
 ```js
 const { TurboUpload } = require("@ardrive/turbo-upload");
 
@@ -28,14 +30,12 @@ const { id, winc } = await client.upload({
 
 ## Why this exists
 
-`@ardrive/turbo-sdk` is the full-featured client, and it installs **344 packages
-/ 892 MB** with **3 critical and 9 high** advisories at the time of writing —
-including two private-key-extraction ones — because it bundles multi-chain
-signing, wallet connectors and a CLI. When you are adding Arweave storage as a
-backend to *someone else's* server, that dependency footprint is what gets the
-pull request rejected.
+`@ardrive/turbo-sdk` is the full-featured client. It installs **344 packages,
+892 MB**, because it bundles multi-chain signing, wallet connectors and a CLI.
 
-This package does one thing completely, with nothing else in the tree.
+When you are adding Arweave storage to *someone else's* server, that tree is
+what gets the pull request rejected. This package does one thing completely,
+with nothing else in it.
 
 ## What it does
 
@@ -44,21 +44,12 @@ This package does one thing completely, with nothing else in the tree.
 - Prices uploads, reads your credit balance, reads service info
 - Verifies data items, including a strict mode most implementations do not have
 
-## What it deliberately does **not** do
+## Use `@ardrive/turbo-sdk` instead if you need
 
-No multi-chain signing · no wallet connectors or browser build · no CLI · no
-fiat top-ups, promo codes or payment flows · no bundle (multi-item) packing · no
-file-streaming or chunked upload · no ArDrive/Arweave filesystem abstractions.
-
-### When to use `@ardrive/turbo-sdk` instead
-
-Reach for the official SDK — and accept the dependency tree — if you need to:
-
-- sign with **Ethereum, Solana, KYVE, Polygon or any non-Arweave key**
-- run **in a browser**, or connect an injected wallet
-- **buy credits**, apply promo codes, or use any fiat/crypto payment flow
-- use the **CLI**, upload **folders**, or use ArDrive drive/folder abstractions
-- pack **multiple items into a bundle** yourself, or stream very large files
+Non-Arweave keys (Ethereum, Solana, KYVE, Polygon) · a browser build or an
+injected wallet · buying credits, promo codes, any payment flow · the CLI,
+folder uploads, or ArDrive drive abstractions · packing your own bundles ·
+streaming very large files.
 
 This package signs one Arweave JWK and uploads bytes. If that is your case, the
 dependency count is 0 instead of 344.
@@ -192,15 +183,11 @@ Exported as named constants so nobody has to guess a hostname.
 | `PRODUCTION` | `https://upload.ardrive.io` | `https://payment.ardrive.io` | `https://arweave.net` |
 | `TESTNET` | `https://upload.services.ar-io.dev` | `https://payment.services.ar-io.dev` | `https://ar-io.dev` |
 
-> **The testnet hostnames contain `.services.`** — this matters, and it is why
-> they are constants rather than documentation:
->
-> - `upload.ar-io.dev` (without `.services.`) **resolves** and serves an HTML SPA
->   on every path including `/v1/tx`, so you get a `200` with an HTML body rather
->   than an obvious failure.
-> - The published `@ardrive/turbo-sdk` ships `upload.ardrive.dev` /
->   `payment.ardrive.dev` as its development configuration, and both are
->   **NXDOMAIN**.
+> **The testnet hostnames contain `.services.`**, which is why they are
+> constants rather than prose. `upload.ar-io.dev`, without `.services.`,
+> **resolves** and serves an HTML page on every path including `/v1/tx` — so a
+> wrong hostname gives you a `200` with an HTML body instead of an obvious
+> failure. Import the constant and the question never arises.
 
 Uploads to `PRODUCTION` are permanent and cost real money.
 
