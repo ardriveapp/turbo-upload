@@ -65,7 +65,7 @@ dependency count is 0 instead of 344.
 | `jwk` | *required* | Arweave JWK, **an object or a JSON string** |
 | `uploadUrl` | `https://upload.ardrive.io` | |
 | `paymentUrl` | `https://payment.ardrive.io` | |
-| `timeoutMs` | `60000` | per request, overridable per call |
+| `timeoutMs` | `60000` | **per request, not per call** — see below |
 | `retry` | `{retries:3, minDelayMs:500, maxDelayMs:8000, retryStatuses:[408,429,500,502,503,504]}` | **partial** — override one field, keep the rest |
 | `token` | `"arweave"` | anything else throws immediately |
 | `fetch` | global `fetch` | injectable for tests and proxies |
@@ -80,6 +80,26 @@ const client = new TurboUpload({ jwk, ...TESTNET, timeoutMs: 30_000, retry: { re
 // or
 const client = TurboUpload.testnet({ jwk });
 ```
+
+#### `timeoutMs` is per request. Bound the whole call yourself.
+
+`timeoutMs` applies to each HTTP attempt, and `retry` runs up to `retries` more
+of them. **They multiply.** With the defaults, one `upload()` can take:
+
+```
+(retries + 1) × timeoutMs + backoff
+(3 + 1)       × 60_000    + ~15s     ≈ 4 minutes 7 seconds
+```
+
+There is deliberately no total-deadline option, because the right bound depends
+on the caller. In a request handler or any path a user is waiting on, set one:
+
+```js
+const bounded = AbortSignal.any([shutdownSignal, AbortSignal.timeout(20_000)]);
+await client.upload({ data, tags, signal: bounded });
+```
+
+Lower `timeoutMs` alone is not enough: it shortens each attempt, not the call.
 
 ### `await client.upload({ data, tags?, target?, anchor?, signal?, timeoutMs? })`
 
@@ -173,6 +193,42 @@ TurboHTTPError: POST https://upload.ardrive.io/v1/tx failed: HTTP 402 Payment Re
 rather than a bare `fetch failed`.
 
 ---
+
+## Testing against it
+
+The constructor validates eagerly, so a placeholder key will not work. Generate
+a throwaway one, and inject `fetch`:
+
+```js
+const { generateKeyPairSync } = require("node:crypto");
+const { TurboUpload } = require("@ardrive/turbo-upload");
+
+const jwk = generateKeyPairSync("rsa", { modulusLength: 4096 })
+  .privateKey.export({ format: "jwk" });
+
+const fetchStub = async (url, init) =>
+  new Response(JSON.stringify({ id: "…", winc: "0" }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+
+const client = new TurboUpload({ jwk, fetch: fetchStub });
+```
+
+**Two things worth knowing before you write the stub.** `uploadSigned` checks
+that the id the service returned matches the one it computed locally, so a stub
+returning a fixed id fails with `TurboVerificationError` rather than the thing
+you were testing — return the id of what was actually POSTed. And signing an
+RSA-4096 key takes tens of milliseconds, so generate it once per suite, not per
+test.
+
+The error classes take an options object and are declared with constructors, so
+you can build one directly to test your own handling:
+
+```js
+const { TurboPaymentError } = require("@ardrive/turbo-upload");
+throw new TurboPaymentError({ status: 402, endpoint: "…", method: "POST" });
+```
 
 ## Endpoints
 

@@ -2,7 +2,11 @@
 //
 //   ARWEAVE_JWK="$(cat wallet.json)" node examples/upload.js
 //
-// Uploads under 107,520 bytes are free, so this costs nothing.
+// The free tier is a LIFETIME allowance, not a per-upload one: roughly 10 MiB
+// per wallet and per IP on production, with a per-item ceiling. Read the real
+// numbers from the service rather than trusting this comment:
+//   const { freeTier } = await client.getInfo();
+// A small upload like this one is free until that allowance is used up.
 const { TurboUpload, TESTNET } = require("@ardrive/turbo-upload");
 
 const client = new TurboUpload({
