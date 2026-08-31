@@ -8,6 +8,7 @@
 
 const {
   TurboHTTPError,
+  TurboPaymentError,
   TurboNetworkError,
   TurboTimeoutError,
   TurboConfigError,
@@ -169,7 +170,7 @@ async function request({
     }
 
     const parsedBody = await readBody(res);
-    lastError = new TurboHTTPError({
+    lastError = new (res.status === 402 ? TurboPaymentError : TurboHTTPError)({
       status: res.status,
       statusText: res.statusText,
       endpoint: url,

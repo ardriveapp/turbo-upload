@@ -80,6 +80,22 @@ class TurboHTTPError extends TurboError {
  * sent. Either the service mutated the item or we are talking to something that
  * is not a Turbo upload service. Never ignore this.
  */
+/**
+ * The service refused the upload because the wallet cannot pay for it: HTTP 402.
+ *
+ * A subclass rather than a status check, because "is this a payment failure" is
+ * a property of the Turbo protocol, not of any one integration. Without it every
+ * consumer independently rediscovers that 402 is the answer, which costs each of
+ * them a live probe against a real service.
+ *
+ * It matters because a payment failure is not transient. Retrying will not help,
+ * and an integration that treats it like a 503 goes quiet while reporting
+ * healthy, which for an archive is the worst available failure mode.
+ *
+ * Still a TurboHTTPError, so existing `catch` blocks keep working unchanged.
+ */
+class TurboPaymentError extends TurboHTTPError {}
+
 class TurboVerificationError extends TurboError {
   constructor(message, { expectedId, receivedId, endpoint } = {}) {
     super(message);
@@ -90,6 +106,7 @@ class TurboVerificationError extends TurboError {
 }
 
 module.exports = {
+  TurboPaymentError,
   TurboError,
   TurboConfigError,
   TurboKeyError,
