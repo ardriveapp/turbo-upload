@@ -1,0 +1,4 @@
+# scripts/ is developer-facing: the live round trip needs a funded wallet and
+# posts to a real service. It is not part of the published package.
+scripts/
+.gitignore

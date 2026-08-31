@@ -1,12 +1,57 @@
 {
-  "name": "turbo-upload",
-  "version": "1.0.0",
+  "name": "@ardrive/turbo-upload",
+  "version": "0.1.0",
+  "description": "Zero-dependency ANS-104 data-item signing and Turbo upload for Arweave JWKs. Server-side Node, no wallet connectors, no CLI.",
+  "keywords": [
+    "arweave",
+    "ans-104",
+    "ans104",
+    "turbo",
+    "ardrive",
+    "data-item",
+    "bundle",
+    "zero-dependency",
+    "upload"
+  ],
+  "license": "Apache-2.0",
   "main": "index.js",
-  "license": "MIT",
-  "dependencies": {
-    "@ardrive/turbo-sdk": "^1.0.1"
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./package.json": "./package.json"
   },
-  "devDependencies": {
-    "dotenv": "^16.3.1"
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "src/",
+    "test/",
+    "vectors/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:conformance": "node --test test/conformance.test.js",
+    "test:live": "node scripts/live-roundtrip.js"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Permanent Data Solutions, Inc.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ardriveapp/turbo-upload.git"
+  },
+  "homepage": "https://github.com/ardriveapp/turbo-upload#readme",
+  "bugs": {
+    "url": "https://github.com/ardriveapp/turbo-upload/issues"
   }
 }
