@@ -30,6 +30,7 @@
     "index.js",
     "index.d.ts",
     "src/",
+    "examples/",
     "test/",
     "vectors/",
     "README.md",
