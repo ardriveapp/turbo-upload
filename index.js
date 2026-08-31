@@ -30,6 +30,7 @@ const {
   TurboNetworkError,
   TurboTimeoutError,
   TurboHTTPError,
+  TurboPaymentError,
   TurboVerificationError,
 } = require("./src/errors.js");
 
@@ -97,5 +98,6 @@ module.exports = {
   TurboNetworkError,
   TurboTimeoutError,
   TurboHTTPError,
+  TurboPaymentError,
   TurboVerificationError,
 };

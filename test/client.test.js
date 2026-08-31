@@ -18,6 +18,7 @@ const {
   TurboConfigError,
   TurboKeyError,
   TurboHTTPError,
+  TurboPaymentError,
   TurboNetworkError,
   TurboTimeoutError,
   TurboValidationError,
@@ -411,5 +412,39 @@ test("a transport retry re-sends the SAME bytes, it never re-signs", async () =>
   assert.ok(
     posted[0].equals(posted[1]),
     "the retry sent different bytes, so it re-signed: that is a second item and a second charge",
+  );
+});
+
+test("a 402 throws TurboPaymentError, so a caller can tell it from a transient failure", async () => {
+  // Established against the live testnet service: an unfunded wallet posting an
+  // item over the free-tier ceiling gets HTTP 402 Payment Required. A payment
+  // failure is NOT transient, and an integration that treats it like a 503 goes
+  // quiet while reporting healthy. For an archive that is the worst available
+  // failure mode, so the distinction is the package's job rather than every
+  // consumer independently rediscovering that 402 is the answer.
+  const broke = stubFetch({ status: 402, body: { x402Version: 1 }, headers: { "content-type": "application/json" } });
+  const c = new TurboUpload({ jwk: JWK, uploadUrl: "https://example.test/", fetch: broke, retry: false });
+
+  await assert.rejects(
+    () => c.upload({ data: Buffer.from("cannot pay for this"), tags: [] }),
+    (err) => {
+      assert.ok(err instanceof TurboPaymentError, "402 must throw TurboPaymentError");
+      assert.ok(err instanceof TurboHTTPError, "and must stay a TurboHTTPError so existing catches work");
+      assert.equal(err.status, 402);
+      return true;
+    },
+  );
+});
+
+test("a 503 stays a plain TurboHTTPError and is not mistaken for a payment failure", async () => {
+  const busy = stubFetch({ status: 503, body: "busy" });
+  const c = new TurboUpload({ jwk: JWK, uploadUrl: "https://example.test/", fetch: busy, retry: false });
+  await assert.rejects(
+    () => c.upload({ data: Buffer.from("transient"), tags: [] }),
+    (err) => {
+      assert.ok(err instanceof TurboHTTPError);
+      assert.ok(!(err instanceof TurboPaymentError), "a 503 must not read as inability to pay");
+      return true;
+    },
   );
 });

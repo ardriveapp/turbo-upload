@@ -312,27 +312,44 @@ export declare const DEFAULT_RETRY: RetryConfig;
 
 /** Base class for everything this package throws. */
 export declare class TurboError extends Error {
+  constructor(message: string, options?: { cause?: unknown });
   readonly cause?: unknown;
 }
 /** Bad client configuration, thrown from the constructor. */
-export declare class TurboConfigError extends TurboError {}
+export declare class TurboConfigError extends TurboError {
+  constructor(message: string, options?: { cause?: unknown });
+}
 /** The JWK is missing, malformed, not RSA, or not RSA-4096. */
-export declare class TurboKeyError extends TurboConfigError {}
+export declare class TurboKeyError extends TurboConfigError {
+  constructor(message: string, options?: { cause?: unknown });
+}
 /** Bad arguments to a call. */
-export declare class TurboValidationError extends TurboError {}
+export declare class TurboValidationError extends TurboError {
+  constructor(message: string, options?: { cause?: unknown });
+}
 /** No HTTP response at all: DNS, TLS, connection reset. */
 export declare class TurboNetworkError extends TurboError {
+  constructor(init: { endpoint: string; method: string; cause?: unknown });
   readonly endpoint?: string;
   readonly method?: string;
 }
 /** The request exceeded timeoutMs, or the caller's signal aborted it. */
 export declare class TurboTimeoutError extends TurboError {
+  constructor(init: { endpoint: string; method: string; timeoutMs: number; cause?: unknown });
   readonly endpoint?: string;
   readonly method?: string;
   readonly timeoutMs?: number;
 }
 /** A non-2xx response. Carries status, endpoint and body. */
 export declare class TurboHTTPError extends TurboError {
+  constructor(init: {
+    status: number;
+    statusText?: string;
+    endpoint: string;
+    method: string;
+    body?: unknown;
+    cause?: unknown;
+  });
   readonly status: number;
   readonly statusText?: string;
   readonly endpoint: string;
@@ -341,7 +358,17 @@ export declare class TurboHTTPError extends TurboError {
   readonly body: unknown;
 }
 /** The service returned an id we did not produce. */
+/**
+ * The service refused the upload because the wallet cannot pay: HTTP 402.
+ *
+ * Catch this to tell "we cannot pay" apart from a transient failure. Retrying
+ * will not help, and treating it like a 503 makes an integration go quiet while
+ * reporting healthy. Still a `TurboHTTPError`, so existing catches keep working.
+ */
+export declare class TurboPaymentError extends TurboHTTPError {}
+
 export declare class TurboVerificationError extends TurboError {
+  constructor(init: { expectedId: string; receivedId: string });
   readonly expectedId?: string;
   readonly receivedId?: string;
   readonly endpoint?: string;
