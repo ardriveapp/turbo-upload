@@ -6,7 +6,18 @@ name: publish
 #
 #   git tag v0.2.0 && git push origin v0.2.0
 #
-# Requires an automation token in the repo secrets as NPM_TOKEN.
+# AUTHENTICATION: this uses npm trusted publishing, so there is no token and no
+# repository secret. npm verifies a short-lived OIDC token that GitHub mints for
+# this specific workflow in this specific repository, which is why `id-token:
+# write` below is load-bearing.
+#
+# One-time setup, on npmjs.com, by a package maintainer:
+#   the package page -> Settings -> Trusted Publisher -> GitHub Actions
+#   organization: ardriveapp   repository: turbo-upload   workflow: publish.yml
+#
+# Preferred over an NPM_TOKEN secret because there is no long-lived credential
+# to leak, rotate or expire, and a stolen one cannot be replayed from anywhere
+# else. It also signs provenance without a separate flag.
 on:
   push:
     tags: ["v*"]
@@ -24,8 +35,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          # Trusted publishing needs Node >= 22.14 and npm >= 11.5.1. Node 24
+          # satisfies the first; the npm that ships with it does not reliably
+          # satisfy the second, so it is upgraded explicitly rather than left
+          # to whatever the runner image happens to carry this month.
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
+
+      - name: npm new enough for trusted publishing
+        run: |
+          npm install -g npm@^11
+          npm --version
 
       # A tag that disagrees with package.json publishes a version nobody
       # intended and cannot be taken back, so it fails here instead.
@@ -50,9 +70,10 @@ jobs:
 
       - run: npm test
 
-      - run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # No NODE_AUTH_TOKEN. Authentication is the OIDC token from the
+      # `id-token: write` permission above, exchanged with npm for a short-lived
+      # credential. Provenance is attested as part of that exchange.
+      - run: npm publish
 
       - name: confirm the registry actually has it
         run: |
