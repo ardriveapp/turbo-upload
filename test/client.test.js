@@ -87,6 +87,11 @@ test("a too-small RSA key is refused with the real reason", () => {
 test("endpoint constants are exported so nobody guesses a hostname", () => {
   assert.equal(PRODUCTION.uploadUrl, "https://upload.ardrive.io");
   assert.equal(PRODUCTION.paymentUrl, "https://payment.ardrive.io");
+  // Each gateway is the one its own upload service names in /v1/info. This was
+  // arweave.net, which answered 429 to ten consecutive reads of items this
+  // package had just uploaded, while the service's own gateway answered 200.
+  assert.equal(PRODUCTION.gatewayUrl, "https://turbo-gateway.com");
+  assert.equal(TESTNET.gatewayUrl, "https://ar-io.dev");
   // `.services.` is load-bearing: upload.ar-io.dev resolves and serves an SPA.
   assert.equal(TESTNET.uploadUrl, "https://upload.services.ar-io.dev");
   assert.equal(TESTNET.paymentUrl, "https://payment.services.ar-io.dev");
