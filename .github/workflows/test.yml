@@ -1,0 +1,58 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # `engines` declares >=18.17.0. Every version named there is tested, so
+        # the field is a claim this repo checks rather than one it asserts.
+        node: ["18.17", "18", "20", "22", "24"]
+    name: node ${{ matrix.node }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # No install step, deliberately. The package has no dependencies and no
+      # devDependencies, so there is nothing to fetch and nothing to cache. If
+      # an install appears here, the zero-dependency claim has stopped being
+      # true and `zero-deps.test.js` will say so first.
+      - run: npm test
+
+  no-dependencies:
+    runs-on: ubuntu-latest
+    name: still zero dependencies
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # The whole argument for this package is what it does not pull in, so it
+      # is checked in CI rather than only in a test file someone could skip.
+      - name: assert no dependencies of any kind
+        run: |
+          deps=$(node -p "JSON.stringify(require('./package.json').dependencies || {})")
+          dev=$(node -p "JSON.stringify(require('./package.json').devDependencies || {})")
+          echo "dependencies:    $deps"
+          echo "devDependencies: $dev"
+          if [ "$deps" != "{}" ] || [ "$dev" != "{}" ]; then
+            echo "::error::This package must have no dependencies. See README."
+            exit 1
+          fi
+      - name: assert the published tarball adds exactly one lockfile entry
+        run: |
+          npm pack --silent
+          tgz=$(ls -t ./*.tgz | head -1)
+          dir=$(mktemp -d)
+          cd "$dir" && npm init -y >/dev/null
+          npm install --package-lock-only --silent "$OLDPWD/$tgz"
+          n=$(node -p "Object.keys(require('$dir/package-lock.json').packages).filter(Boolean).length")
+          echo "lockfile entries added: $n"
+          [ "$n" = "1" ] || { echo "::error::Expected 1 lockfile entry, got $n"; exit 1; }
