@@ -72,6 +72,54 @@ test("bad keys fail in the CONSTRUCTOR with a message naming the problem", () =>
   assert.throws(() => new TurboUpload({ jwk: [] }), /an array/);
 });
 
+test("an ignored option is refused, because the typo that hides is the expensive one", () => {
+  // The case this was written for. `uploadServiceUrl` was accepted and dropped,
+  // leaving the client on PRODUCTION, so a probe that believed it was talking
+  // to testnet was writing to mainnet and reporting testnet as broken.
+  assert.throws(
+    () => new TurboUpload({ jwk: JWK, uploadServiceUrl: TESTNET.uploadUrl }),
+    (err) =>
+      err instanceof TurboConfigError &&
+      /uploadServiceUrl/.test(err.message) &&
+      /did you mean `uploadUrl`/.test(err.message),
+  );
+
+  // The other shape: a dropped plural. An item uploaded with `tag` carries no
+  // tags at all, so no tag query ever finds it again, and the upload succeeds.
+  const client = new TurboUpload({ jwk: JWK });
+  assert.throws(
+    () => client.sign({ data: "x", tag: [{ name: "a", value: "b" }] }),
+    (err) => err instanceof TurboValidationError && /did you mean `tags`/.test(err.message),
+  );
+
+  // The message has to name what IS accepted, or the caller guesses again.
+  assert.throws(() => new TurboUpload({ jwk: JWK, nope: 1 }), /Accepted: jwk, uploadUrl, paymentUrl/);
+  assert.throws(() => new TurboUpload({ jwk: JWK, a: 1, b: 2 }), /unknown options `a`, `b`/);
+});
+
+test("every public option surface rejects an unknown key, not just the constructor", async () => {
+  const client = new TurboUpload({ jwk: JWK, fetch: stubFetch({ body: {} }) });
+  const bad = { nonsense: true };
+  assert.throws(() => client.sign({ data: "x", ...bad }), TurboValidationError);
+  assert.throws(() => client.verify(Buffer.alloc(0), bad), TurboValidationError);
+  await assert.rejects(() => client.upload({ data: "x", ...bad }), TurboValidationError);
+  await assert.rejects(() => client.uploadSigned(Buffer.alloc(0), bad), TurboValidationError);
+  await assert.rejects(() => client.getUploadCost(1, bad), TurboValidationError);
+  await assert.rejects(() => client.getBalance(bad), TurboValidationError);
+  await assert.rejects(() => client.getInfo(bad), TurboValidationError);
+  await assert.rejects(() => client.getFreeUploadLimitBytes(bad), TurboValidationError);
+});
+
+test("the endpoint records carry fields the constructor does not accept", () => {
+  // TESTNET and PRODUCTION carry `name` and `gatewayUrl` as well as the two URLs.
+  // Spreading the whole record into the constructor is what broke first when
+  // unknown keys started throwing, so the static helpers pick explicitly.
+  assert.ok(Object.keys(TESTNET).includes("name"));
+  assert.ok(Object.keys(TESTNET).includes("gatewayUrl"));
+  assert.equal(TurboUpload.testnet({ jwk: JWK }).uploadUrl, TESTNET.uploadUrl);
+  assert.equal(TurboUpload.production({ jwk: JWK }).uploadUrl, PRODUCTION.uploadUrl);
+});
+
 test("an unsupported token is refused up front and says where to go instead", () => {
   assert.throws(
     () => new TurboUpload({ jwk: JWK, token: "solana" }),
