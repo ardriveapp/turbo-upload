@@ -10,12 +10,25 @@
  * than an obvious failure. The working testnet hosts have `.services.` in them.
  */
 
-/** Mainnet. Uploads here are permanent and cost real money. */
+/**
+ * Mainnet. Uploads here are permanent and cost real money.
+ *
+ * `gatewayUrl` is the gateway the upload service names as its own, in the
+ * `gateway` field of its `/v1/info`. That is deliberate rather than incidental:
+ * arweave.net was the value here, and it answered `429` to ten consecutive
+ * reads of items this package had just uploaded, while the service's own
+ * gateway answered `200` to all ten. A default that rate limits the reader is
+ * worse than no default. TESTNET already matched its service this way.
+ *
+ * Any gateway serving Arweave can return these items by id, and gateways differ
+ * in what they have indexed, so a reader that matters should set this rather
+ * than inherit it.
+ */
 const PRODUCTION = Object.freeze({
   name: "production",
   uploadUrl: "https://upload.ardrive.io",
   paymentUrl: "https://payment.ardrive.io",
-  gatewayUrl: "https://arweave.net",
+  gatewayUrl: "https://turbo-gateway.com",
 });
 
 /** Testnet / dev. Note `.services.` — this is NOT upload.ar-io.dev. */

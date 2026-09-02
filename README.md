@@ -23,7 +23,7 @@ const { id, winc } = await client.upload({
   data: Buffer.from("hello permanence"),
   tags: [{ name: "Content-Type", value: "text/plain" }],
 });
-// -> https://arweave.net/<id>
+// -> https://turbo-gateway.com/<id>
 ```
 
 ---
@@ -252,9 +252,15 @@ throw new TurboPaymentError({ status: 402, endpoint: "…", method: "POST" });
 
 Exported as named constants so nobody has to guess a hostname.
 
+Each `gatewayUrl` is the gateway its own upload service names in `/v1/info`.
+**Set it yourself if reads matter to you.** Any gateway serving Arweave returns
+these items by id, they differ in what they have indexed, and a busy one will
+rate limit you: `arweave.net` answered `429` to ten consecutive reads of items
+this package had just uploaded.
+
 | | upload | payment | gateway |
 |---|---|---|---|
-| `PRODUCTION` | `https://upload.ardrive.io` | `https://payment.ardrive.io` | `https://arweave.net` |
+| `PRODUCTION` | `https://upload.ardrive.io` | `https://payment.ardrive.io` | `https://turbo-gateway.com` |
 | `TESTNET` | `https://upload.services.ar-io.dev` | `https://payment.services.ar-io.dev` | `https://ar-io.dev` |
 
 > **The testnet hostnames contain `.services.`**, which is why they are
