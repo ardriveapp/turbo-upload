@@ -73,6 +73,24 @@ dependency count is 0 instead of 344.
 Everything is validated **in the constructor**, so a bad key is a startup error
 that names the problem.
 
+**An option this package does not recognise is an error, not something it
+ignores.** That holds for every method that takes an options object, and it
+exists because the two typos that hide are both expensive:
+
+```js
+new TurboUpload({ jwk, uploadServiceUrl: TESTNET.uploadUrl });
+// TurboConfigError: new TurboUpload: unknown option `uploadServiceUrl`
+//   (did you mean `uploadUrl`?). Accepted: jwk, uploadUrl, paymentUrl, ...
+
+client.sign({ data, tag: [{ name: "Chain-Id", value: "1" }] });
+// TurboValidationError: sign(): unknown option `tag` (did you mean `tags`?)
+```
+
+Silently dropped, the first leaves the client on production, so data meant for
+a throwaway testnet is written permanently and billed for. The second uploads
+an item with no tags, which no tag query will find again. Neither shows up in
+the return value.
+
 ```js
 const { TurboUpload, TESTNET } = require("@ardrive/turbo-upload");
 

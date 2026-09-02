@@ -18,6 +18,47 @@ const { TurboConfigError, TurboValidationError, TurboVerificationError } = requi
 /** Strip one trailing slash so `${url}/v1/tx` never doubles up. */
 const trimUrl = (u) => String(u).replace(/\/+$/, "");
 
+/**
+ * Reject any option key the caller did not mean to pass.
+ *
+ * An ignored option is the most expensive typo this package can have, because
+ * nothing in the return value says it happened. `uploadServiceUrl` instead of
+ * `uploadUrl` leaves the client on PRODUCTION, so data meant for a throwaway
+ * testnet is written permanently and billed for. `tag` instead of `tags`
+ * uploads an item that no tag query will ever find again.
+ *
+ * Both were real. The second cost an hour of debugging a service that looked
+ * healthy, and the first was found by a probe that reported testnet failing
+ * when it had never been talking to testnet.
+ *
+ * @param {object} options    the object the caller passed
+ * @param {string[]} allowed  every key this call accepts
+ * @param {string} context    what to call the offending call in the message
+ * @param {Function} ErrorClass
+ */
+function assertKnownOptions(options, allowed, context, ErrorClass) {
+  const unknown = Object.keys(options).filter((k) => !allowed.includes(k));
+  if (unknown.length === 0) return;
+  // Suggest on a shared prefix. It catches the two shapes that actually happen,
+  // a longer name for the same thing (uploadServiceUrl) and a dropped plural
+  // (tag), without pretending to be a spell checker.
+  const suggestion = (key) => {
+    const lower = key.toLowerCase();
+    const hit = allowed.find((candidate) => {
+      const other = candidate.toLowerCase();
+      let i = 0;
+      while (i < other.length && i < lower.length && other[i] === lower[i]) i++;
+      return i >= 3;
+    });
+    return hit ? ` (did you mean \`${hit}\`?)` : "";
+  };
+  throw new ErrorClass(
+    `${context}: unknown option${unknown.length > 1 ? "s" : ""} ` +
+      unknown.map((k) => `\`${k}\`${suggestion(k)}`).join(", ") +
+      `. Accepted: ${allowed.join(", ")}.`,
+  );
+}
+
 class TurboUpload {
   /**
    * @param {object} options
@@ -33,6 +74,12 @@ class TurboUpload {
     if (options === null || typeof options !== "object") {
       throw new TurboConfigError(`TurboUpload options must be an object, got ${typeof options}.`);
     }
+    assertKnownOptions(
+      options,
+      ["jwk", "uploadUrl", "paymentUrl", "timeoutMs", "retry", "token", "fetch"],
+      "new TurboUpload",
+      TurboConfigError,
+    );
     const {
       jwk,
       uploadUrl = PRODUCTION.uploadUrl,
@@ -65,12 +112,17 @@ class TurboUpload {
 
   /** A client pointed at the testnet services. Uploads there are not permanent. */
   static testnet(options = {}) {
-    return new TurboUpload({ ...TESTNET, ...options });
+    // The endpoint record also carries `name` and `gatewayUrl`, which are not
+    // client options. Pick the two that are, rather than spreading the record,
+    // so a field added to it later cannot break this call.
+    const { uploadUrl, paymentUrl } = TESTNET;
+    return new TurboUpload({ uploadUrl, paymentUrl, ...options });
   }
 
   /** A client pointed at production. Uploads are permanent and cost real money. */
   static production(options = {}) {
-    return new TurboUpload({ ...PRODUCTION, ...options });
+    const { uploadUrl, paymentUrl } = PRODUCTION;
+    return new TurboUpload({ uploadUrl, paymentUrl, ...options });
   }
 
   /** @private */
@@ -102,7 +154,9 @@ class TurboUpload {
    * @param {string|Buffer} [opts.anchor] 32 RAW bytes (NOT base64url)
    * @returns {{binary: Buffer, id: Buffer, idB64Url: string, signature: Buffer}}
    */
-  sign({ data, tags, target, anchor } = {}) {
+  sign(options = {}) {
+    assertKnownOptions(options, ["data", "tags", "target", "anchor"], "sign()", TurboValidationError);
+    const { data, tags, target, anchor } = options;
     if (data === undefined || data === null) {
       throw new TurboValidationError("`data` is required. Pass a Buffer, Uint8Array or string.");
     }
@@ -133,7 +187,14 @@ class TurboUpload {
    * @param {number} [opts.timeoutMs] overrides the client default for this call
    * @returns {Promise<object>} the service response, plus `id`, `winc` and `byteCount`
    */
-  async upload({ data, tags, target, anchor, signal, timeoutMs } = {}) {
+  async upload(options = {}) {
+    assertKnownOptions(
+      options,
+      ["data", "tags", "target", "anchor", "signal", "timeoutMs"],
+      "upload()",
+      TurboValidationError,
+    );
+    const { data, tags, target, anchor, signal, timeoutMs } = options;
     const item = this.sign({ data, tags, target, anchor });
     return this.uploadSigned(item, { signal, timeoutMs });
   }
@@ -154,7 +215,9 @@ class TurboUpload {
    * @param {{signal?: AbortSignal, timeoutMs?: number}} [options]
    * @returns {Promise<object>}
    */
-  async uploadSigned(item, { signal, timeoutMs } = {}) {
+  async uploadSigned(item, options = {}) {
+    assertKnownOptions(options, ["signal", "timeoutMs"], "uploadSigned()", TurboValidationError);
+    const { signal, timeoutMs } = options;
     const binary = Buffer.isBuffer(item)
       ? item
       : ArrayBuffer.isView(item)
@@ -223,7 +286,9 @@ class TurboUpload {
    * @param {number} bytes
    * @returns {Promise<{winc: string, adjustments: Array}>}
    */
-  async getUploadCost(bytes, { signal, timeoutMs } = {}) {
+  async getUploadCost(bytes, options = {}) {
+    assertKnownOptions(options, ["signal", "timeoutMs"], "getUploadCost()", TurboValidationError);
+    const { signal, timeoutMs } = options;
     if (!Number.isInteger(bytes) || bytes < 0) {
       throw new TurboValidationError(`\`bytes\` must be a non-negative integer, got ${JSON.stringify(bytes)}.`);
     }
@@ -240,7 +305,9 @@ class TurboUpload {
    *
    * @returns {Promise<{winc: string, controlledWinc: string, effectiveBalance: string}>}
    */
-  async getBalance({ address = this.address, signal, timeoutMs } = {}) {
+  async getBalance(options = {}) {
+    assertKnownOptions(options, ["address", "signal", "timeoutMs"], "getBalance()", TurboValidationError);
+    const { address = this.address, signal, timeoutMs } = options;
     const res = await this._request(
       this.paymentUrl,
       `/v1/account/balance/${this.token}?address=${encodeURIComponent(address)}`,
@@ -262,7 +329,9 @@ class TurboUpload {
    *
    * @returns {Promise<object>}
    */
-  async getInfo({ signal, timeoutMs } = {}) {
+  async getInfo(options = {}) {
+    assertKnownOptions(options, ["signal", "timeoutMs"], "getInfo()", TurboValidationError);
+    const { signal, timeoutMs } = options;
     const res = await this._request(this.uploadUrl, "/v1/info", { signal, timeoutMs });
     return res.body;
   }
@@ -272,6 +341,7 @@ class TurboUpload {
    * Items at or below this size upload without any credit balance.
    */
   async getFreeUploadLimitBytes(opts = {}) {
+    assertKnownOptions(opts, ["signal", "timeoutMs"], "getFreeUploadLimitBytes()", TurboValidationError);
     const info = await this.getInfo(opts);
     const limit = info?.freeUploadLimitBytes;
     if (typeof limit !== "number") {
@@ -284,6 +354,7 @@ class TurboUpload {
 
   /** Verify a serialized data item. Pass `{strictSaltLength:true}` to also pin the PSS salt length. */
   verify(binary, opts = {}) {
+    assertKnownOptions(opts, ["strictSaltLength"], "verify()", TurboValidationError);
     return ans104.verifyDataItem(Buffer.isBuffer(binary) ? binary : Buffer.from(binary), opts);
   }
 }
