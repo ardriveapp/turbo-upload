@@ -1,0 +1,88 @@
+name: publish
+
+# Tag-driven, so publishing is a deliberate act with a reviewable trigger
+# rather than a side effect of merging. Push a tag that matches the version in
+# package.json:
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# AUTHENTICATION: this uses npm trusted publishing, so there is no token and no
+# repository secret. npm verifies a short-lived OIDC token that GitHub mints for
+# this specific workflow in this specific repository, which is why `id-token:
+# write` below is load-bearing.
+#
+# One-time setup, on npmjs.com, by a package maintainer:
+#   the package page -> Settings -> Trusted Publisher -> GitHub Actions
+#   organization: ardriveapp   repository: turbo-upload   workflow: publish.yml
+#
+# Preferred over an NPM_TOKEN secret because there is no long-lived credential
+# to leak, rotate or expire, and a stolen one cannot be replayed from anywhere
+# else. It also signs provenance without a separate flag.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required for npm provenance, which attests that this tarball was built
+      # from this commit by this workflow. For a package whose whole argument is
+      # supply-chain surface, saying so verifiably is worth the extra line.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Trusted publishing needs Node >= 22.14 and npm >= 11.5.1. Node 24
+          # satisfies the first; the npm that ships with it does not reliably
+          # satisfy the second, so it is upgraded explicitly rather than left
+          # to whatever the runner image happens to carry this month.
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: npm new enough for trusted publishing
+        run: |
+          npm install -g npm@^11
+          npm --version
+
+      # A tag that disagrees with package.json publishes a version nobody
+      # intended and cannot be taken back, so it fails here instead.
+      - name: the tag must match the version in package.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(node -p "require('./package.json').version")
+          echo "tag=$tag  package.json=$pkg"
+          [ "$tag" = "$pkg" ] || {
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $pkg"
+            exit 1
+          }
+
+      - name: refuse to publish a version that already exists
+        run: |
+          name=$(node -p "require('./package.json').name")
+          pkg=$(node -p "require('./package.json').version")
+          if npm view "$name@$pkg" version >/dev/null 2>&1; then
+            echo "::error::$name@$pkg is already published. Bump the version."
+            exit 1
+          fi
+
+      - run: npm test
+
+      # No NODE_AUTH_TOKEN. Authentication is the OIDC token from the
+      # `id-token: write` permission above, exchanged with npm for a short-lived
+      # credential. Provenance is attested as part of that exchange.
+      - run: npm publish
+
+      - name: confirm the registry actually has it
+        run: |
+          name=$(node -p "require('./package.json').name")
+          pkg=$(node -p "require('./package.json').version")
+          for i in $(seq 1 10); do
+            got=$(npm view "$name@$pkg" version 2>/dev/null || true)
+            [ "$got" = "$pkg" ] && { echo "published: $name@$got"; exit 0; }
+            sleep 6
+          done
+          echo "::error::$name@$pkg not visible on the registry after publishing"
+          exit 1
