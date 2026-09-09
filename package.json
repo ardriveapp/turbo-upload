@@ -33,6 +33,7 @@
     "examples/",
     "test/",
     "vectors/",
+    "AGENTS.md",
     "README.md",
     "LICENSE"
   ],

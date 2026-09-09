@@ -1,11 +1,11 @@
 "use strict";
 /**
- * verify.js — the test.
+ * verify.js, the test.
  *
  *   A. reference-signer.js reproduces every deterministic value in vectors.json.
  *   B. cross-verification: an item signed by us verifies under arbundles, and an item
  *      signed by arbundles verifies under us. Byte-equal deep hashes are necessary but
- *      not sufficient — this is the check that actually matters.
+ *      not sufficient, this is the check that actually matters.
  *
  *   node verify.js            all vectors
  *   node verify.js <name>...  only the named vectors
@@ -293,7 +293,7 @@ function firstDiff(a, b) {
     console.log(`           arbundles   : ${d.want}`);
     console.log(`           strict utf-8: ${d.got}`);
   }
-  if (!strictDiff.length) console.log("         (no divergence observed — the WTF-8 path was not exercised)");
+  if (!strictDiff.length) console.log("         (no divergence observed, the WTF-8 path was not exercised)");
 
   // ---------- summary ----------
   console.log("");

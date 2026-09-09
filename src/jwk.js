@@ -44,7 +44,7 @@ function parseJwk(input) {
     } catch (cause) {
       if (cause instanceof TurboKeyError) throw cause;
       throw new TurboKeyError(
-        "The JWK string is not valid JSON. An Arweave JWK is a JSON object with n/e/d/p/q/dp/dq/qi fields — " +
+        "The JWK string is not valid JSON. An Arweave JWK is a JSON object with n/e/d/p/q/dp/dq/qi fields, " +
           "if it came from an environment variable, check it was not truncated or shell-quoted.",
         { cause },
       );
@@ -83,7 +83,7 @@ function loadJwk(input, { token = "arweave" } = {}) {
     const isPublicOnly = missing.includes("d") && typeof jwk.n === "string";
     throw new TurboKeyError(
       `The JWK is missing required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}.` +
-        (isPublicOnly ? " This looks like a PUBLIC key — signing needs the full private JWK." : ""),
+        (isPublicOnly ? " This looks like a PUBLIC key, signing needs the full private JWK." : ""),
     );
   }
 
@@ -94,7 +94,7 @@ function loadJwk(input, { token = "arweave" } = {}) {
   if (jwk.e !== "AQAB") {
     throw new TurboKeyError(
       `The JWK public exponent must be 65537 ("AQAB"), got "${jwk.e}". ` +
-        `ANS-104 does not carry the exponent on the wire — every verifier assumes 65537, ` +
+        `ANS-104 does not carry the exponent on the wire, every verifier assumes 65537, ` +
         `so items signed with any other exponent cannot be verified by anyone.`,
     );
   }

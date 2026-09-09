@@ -26,6 +26,29 @@ jobs:
       # true and `zero-deps.test.js` will say so first.
       - run: npm test
 
+  house-style:
+    runs-on: ubuntu-latest
+    name: house style
+    steps:
+      - uses: actions/checkout@v4
+      # Em dashes are banned in everything we write. This check exists because
+      # the rule was honoured by hand and drifted: a review found 65 of them
+      # across this package, in a repo whose CI had no way to notice.
+      #
+      # The two vectors.json files are excluded. They are generated fixtures,
+      # their em dashes sit in description strings, and hand-editing a generated
+      # file drifts it from its generator.
+      - name: no em dashes
+        run: |
+          hits=$(git ls-files -z ':!vectors/vectors.json' ':!conformance/vectors.json' \
+            | xargs -0 grep -nP '\x{2014}' 2>/dev/null || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo "::error::Em dashes are banned. Use a comma, a colon, or parentheses."
+            exit 1
+          fi
+          echo "no em dashes"
+
   no-dependencies:
     runs-on: ubuntu-latest
     name: still zero dependencies

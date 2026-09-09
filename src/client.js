@@ -1,6 +1,6 @@
 "use strict";
 /**
- * TurboUpload — sign an ANS-104 data item with an Arweave JWK and upload it to
+ * TurboUpload, sign an ANS-104 data item with an Arweave JWK and upload it to
  * a Turbo upload service.
  *
  * Scope is deliberately one thing: Arweave JWK signing plus upload. No
@@ -202,7 +202,7 @@ class TurboUpload {
   /**
    * Upload an item that has ALREADY been signed by `sign()`.
    *
-   * Use this whenever you need the id before the upload — to record it, to
+   * Use this whenever you need the id before the upload, to record it, to
    * check the price of the real item length, or to hand the bytes to your own
    * transport and upload later.
    *
@@ -240,7 +240,7 @@ class TurboUpload {
     // Cheap guard against POSTing an unsigned skeleton, which the service would
     // reject with an opaque error much further away from the mistake.
     if (parsed.rawSignature.every((b) => b === 0)) {
-      throw new TurboValidationError("This data item is not signed — its signature region is all zeroes.");
+      throw new TurboValidationError("This data item is not signed, its signature region is all zeroes.");
     }
 
     const expectedId = ans104.idFromSignature(parsed.rawSignature).toString("base64url");
@@ -300,8 +300,7 @@ class TurboUpload {
    * The wallet's Turbo credit balance.
    *
    * A wallet the payment service has never seen returns 404 "User Not Found".
-   * That is a zero balance, not an error, so it is normalised to zeros here —
-   * a brand-new wallet asking its balance should not throw.
+   * That is a zero balance, not an error, so it is normalised to zeros here, * a brand-new wallet asking its balance should not throw.
    *
    * @returns {Promise<{winc: string, controlledWinc: string, effectiveBalance: string}>}
    */
@@ -325,7 +324,7 @@ class TurboUpload {
    *
    * This is where `freeUploadLimitBytes` comes from. It is a service policy
    * number (107520 at the time of writing) and it is NOT hardcoded here on
-   * purpose — read it if you need to branch on it.
+   * purpose, read it if you need to branch on it.
    *
    * @returns {Promise<object>}
    */

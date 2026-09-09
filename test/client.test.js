@@ -333,7 +333,7 @@ test("getUploadCost hits /v1/price/bytes/N and validates its argument", async ()
 
 test("getBalance turns the 404 for an unknown wallet into a zero balance", async () => {
   // The payment service answers 404 "User Not Found" for a wallet it has never
-  // seen. That is a zero balance, not a failure — a new wallet asking its
+  // seen. That is a zero balance, not a failure, a new wallet asking its
   // balance should not throw.
   const f = stubFetch({ status: 404, body: "User Not Found", headers: { "content-type": "text/plain" } });
   const c = new TurboUpload({ jwk: JWK, paymentUrl: "https://pay.test", fetch: f });
@@ -407,7 +407,7 @@ test("uploadSigned accepts raw bytes and rejects junk and unsigned items", async
   // opaque error a long way from the mistake.
   const unsigned = Buffer.from(item.binary);
   unsigned.fill(0, 2, 514);
-  await assert.rejects(c.uploadSigned(unsigned), /not signed — its signature region is all zeroes/);
+  await assert.rejects(c.uploadSigned(unsigned), /not signed, its signature region is all zeroes/);
 });
 
 test("every public export is importable BY NAME from ESM", async () => {

@@ -23,7 +23,7 @@ Current status: **22 vectors, 545 assertions, all green** against
 | [`reference-signer.js`](reference-signer.js) | **Zero runtime dependencies.** `node:crypto` + `node:buffer` only. Never imports arbundles. |
 | [`verify.js`](verify.js) | The test. Checks the reference implementation against the corpus *and* cross-verifies both ways against arbundles. |
 | [`generate-vectors.js`](generate-vectors.js) | Regenerates `vectors.json` from `cases.js` using arbundles as the reference. |
-| [`cases.js`](cases.js) | The corpus definition — pure data, one entry per case, with the rationale for each. |
+| [`cases.js`](cases.js) | The corpus definition, pure data, one entry per case, with the rationale for each. |
 | [`arbundles.js`](arbundles.js) | Loader shim that works around arbundles' undeclared `axios` dependency. See below. |
 | [`test-key.json`](test-key.json) | **THROWAWAY RSA-4096 key.** Generated for this corpus, checked in deliberately, published in the clear. Never use it for anything. Regenerate with `node gen-key.js`. |
 | [`standalone-check.js`](standalone-check.js) | Isolation test: the reference signer against the corpus with **no `node_modules` anywhere on the resolution path**. Proves the zero-dependency claim. |
@@ -54,12 +54,12 @@ default. Point it elsewhere with `ARBUNDLES_ROOT=/path/to/build/node/cjs/src`.
 
 ### What `verify.js` actually checks
 
-**Direction 1 — the corpus.** For every vector, `reference-signer.js` must reproduce the
+**Direction 1, the corpus.** For every vector, `reference-signer.js` must reproduce the
 serialized tag bytes, the raw target/anchor/data, every field offset, the full unsigned
 item, its SHA-256, a key-independent skeleton hash, the eight deep-hash input chunks, and
 the deep hash itself. Byte for byte.
 
-**Direction 2 — cross-verification.** This is the check that matters. Equal deep hashes
+**Direction 2, cross-verification.** This is the check that matters. Equal deep hashes
 are necessary but not sufficient.
 
 - an item signed by **us** verifies under **arbundles'** verifier
@@ -82,7 +82,7 @@ No Node needed. Every byte string in the file is **lowercase hex**; every hash i
 
 ```
 {
-  "signature_type": { ... },   # algorithm, salt length, widths — the parameters, in one place
+  "signature_type": { ... },   # algorithm, salt length, widths, the parameters, in one place
   "deep_hash":      { ... },   # the two hashing rules, restated
   "key":            { ... },   # the throwaway key's modulus, base64url
   "limits":         [ ... ],   # malformed inputs and the errors the reference raises
@@ -107,7 +107,7 @@ Each vector:
     "anchor_hex":     "..." | null   # authoritative: the anchor is RAW BYTES, not base64url
   },
 
-  "expected": {                      # all deterministic — assert equality on all of it
+  "expected": {                      # all deterministic, assert equality on all of it
     "tag_bytes_hex":              "...",   # the serialized tag region
     "raw_target_hex":             "...",   # "" when absent
     "raw_anchor_hex":             "...",
@@ -115,7 +115,7 @@ Each vector:
     "offsets":                    { ... }, # every field offset and the total length
     "unsigned_item_hex":          "...",   # the complete item, signature region zeroed
     "unsigned_item_sha256":       "...",
-    "keyless_skeleton_sha256":    "...",   # signature AND owner zeroed — key-independent
+    "keyless_skeleton_sha256":    "...",   # signature AND owner zeroed, key-independent
     "deep_hash_input_chunks_hex": [ 8 strings ],  # the exact deep-hash inputs, in order
     "deep_hash_hex":              "..."    # 48 bytes: THE MESSAGE THAT GETS SIGNED
   },
@@ -125,7 +125,7 @@ Each vector:
     "strict_utf8_tag_bytes_hex":   null | "..."
   },
 
-  "sample_signature": {              # NOT an equality target — see below
+  "sample_signature": {              # NOT an equality target, see below
     "signature_hex": "...", "id_hex": "...", "id_b64url": "..."
   }
 }
@@ -143,15 +143,15 @@ signed item to test your verifier against.
 
 ### Suggested order of attack
 
-1. **`tag_bytes_hex`** — the Avro tag encoder. Most bugs live here, and it needs no crypto.
-2. **`unsigned_item_hex`** and **`offsets`** — the container layout.
-3. **`deep_hash_input_chunks_hex`** — if this matches and `deep_hash_hex` does not, your
+1. **`tag_bytes_hex`**, the Avro tag encoder. Most bugs live here, and it needs no crypto.
+2. **`unsigned_item_hex`** and **`offsets`**, the container layout.
+3. **`deep_hash_input_chunks_hex`**, if this matches and `deep_hash_hex` does not, your
    deep-hash function is wrong. If a chunk is wrong, your layout is wrong. This split is
    the fastest way to localise a failure.
-4. **`deep_hash_hex`** — the SHA-384 transcript.
-5. **Verification** — verify each `sample_signature` against the corresponding
+4. **`deep_hash_hex`**, the SHA-384 transcript.
+5. **Verification**, verify each `sample_signature` against the corresponding
    `unsigned_item_hex`.
-6. **Signing** — sign, then verify with your own verifier, then confirm your salt length is
+6. **Signing**, sign, then verify with your own verifier, then confirm your salt length is
    478 by recovering it from the encoded message. Do not skip this: a wrong salt length
    still verifies against the reference (see `spec.md` §5.3).
 
@@ -167,7 +167,7 @@ Detail and evidence in [`spec.md`](spec.md); the short version:
 1. **The PSS salt length is 478, not 32.** It is `RSA_PSS_SALTLEN_MAX_SIGN`
    (`emLen - hLen - 2 = 512 - 32 - 2`), because arbundles never sets `saltLength` and
    Node's signing default is the maximum. Most libraries default to the digest length.
-   **Verification is salt-agnostic, so getting this wrong does not fail loudly** — a
+   **Verification is salt-agnostic, so getting this wrong does not fail loudly**, a
    32-byte-salt signature verifies fine under arbundles.
 2. **`anchor` is raw bytes; `target` is base64url.** Same 32-byte width, adjacent fields,
    opposite string conventions, in the same function.
@@ -209,4 +209,4 @@ under `build/node/cjs/src/` through an absolute filesystem path, which never tou
 - Signature type 1 only. Types 2–7 and 101 exist and have different key and signature
   widths; the layout in `spec.md` §1 generalises, the crypto does not.
 - Nothing here talks to the network. Whether the Arweave gateway accepts a non-maximum PSS
-  salt length is **untested** — it needs a live endpoint. See `spec.md` §5.3.
+  salt length is **untested**, it needs a live endpoint. See `spec.md` §5.3.

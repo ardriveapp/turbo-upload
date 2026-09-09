@@ -3,7 +3,7 @@
  * Signing behaviour, including THE assertion this package exists to guarantee:
  * the PSS salt length recovered off the wire is 478, not 32.
  *
- * The key is generated at runtime. No private key ships in this package — the
+ * The key is generated at runtime. No private key ships in this package, the
  * conformance corpus carries only the public modulus, and a 4096-bit keygen
  * costs a second or two, which is cheaper than shipping a private key that
  * every secret scanner in the world will flag inside node_modules.
@@ -76,7 +76,7 @@ test("the salt-length trap: a 32-byte-salt signature still verifies loosely", ()
   item.set(wrong, 2);
 
   assert.equal(recoverSaltLength(wrong), 32, "the wrong signature really does have a 32-byte salt");
-  assert.equal(ans104.verifyDataItem(item), true, "and it verifies loosely — as it does at the gateway today");
+  assert.equal(ans104.verifyDataItem(item), true, "and it verifies loosely, as it does at the gateway today");
   assert.equal(
     ans104.verifyDataItem(item, { strictSaltLength: true }),
     false,

@@ -1,6 +1,6 @@
 "use strict";
 /**
- * Conformance against vectors/vectors.json — 22 vectors generated from
+ * Conformance against vectors/vectors.json, 22 vectors generated from
  * @dha-team/arbundles@1.0.4, the de-facto reference implementation.
  *
  * Everything asserted here is DETERMINISTIC and must match byte for byte. If a
@@ -137,7 +137,7 @@ for (const v of V.vectors) {
 test("tag round-tripping is LOSSY for unpaired surrogates, in both encoder paths", () => {
   // Not a defect to fix: a data item carries BYTES, and neither WTF-8 nor
   // U+FFFD decodes back to the original lone surrogate. Worth pinning because
-  // the tempting "fix" — making deserializeTags surrogate-preserving — would
+  // the tempting "fix", making deserializeTags surrogate-preserving, would
   // change ids and break conformance. If your tags may contain unpaired
   // surrogates, reject them upstream; do not rely on reading them back.
   for (const name of ["lone-surrogate-tag-short", "lone-surrogate-tag-long"]) {

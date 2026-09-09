@@ -3,7 +3,7 @@
 Sign [ANS-104](https://github.com/ArweaveTeam/arweave-standards/blob/master/ans/ANS-104.md)
 data items with an Arweave JWK and upload them to a Turbo upload service.
 
-**Zero runtime dependencies.** Not "few". Zero — `dependencies`,
+**Zero runtime dependencies.** Not "few". Zero. `dependencies`,
 `peerDependencies` and `optionalDependencies` are all empty, and a test in the
 shipped suite fails the build if that ever changes. The only things it imports
 are `node:crypto` and `node:buffer`.
@@ -15,27 +15,78 @@ npm install @ardrive/turbo-upload
 Runnable examples: [`examples/`](examples/).
 
 ```js
-const { TurboUpload } = require("@ardrive/turbo-upload");
+const { TurboUpload, TESTNET } = require("@ardrive/turbo-upload");
 
-const client = new TurboUpload({ jwk: process.env.ARWEAVE_JWK });
+// Testnet, so this costs nothing and nothing it writes is permanent.
+// Drop `uploadUrl` and `paymentUrl` to talk to production, where uploads are
+// permanent, public, and paid for out of the wallet you signed with.
+const client = new TurboUpload({
+  jwk: process.env.ARWEAVE_JWK,
+  uploadUrl: TESTNET.uploadUrl,
+  paymentUrl: TESTNET.paymentUrl,
+});
 
 const { id, winc } = await client.upload({
   data: Buffer.from("hello permanence"),
   tags: [{ name: "Content-Type", value: "text/plain" }],
 });
-// -> https://turbo-gateway.com/<id>
+// -> https://ar-io.dev/<id>   (production reads from https://turbo-gateway.com/<id>)
 ```
 
 ---
 
 ## Why this exists
 
-`@ardrive/turbo-sdk` is the full-featured client. It installs **344 packages,
-892 MB**, because it bundles multi-chain signing, wallet connectors and a CLI.
+`@ardrive/turbo-sdk` is the full-featured client, and it is the right choice
+for most things. It carries multi-chain signing, wallet connectors, payments
+and a CLI, and that costs a dependency tree:
+
+| installed on its own | lockfile entries | on disk | `npm audit` |
+|---|---|---|---|
+| `@ardrive/turbo-sdk@1.43.0` | 784 | 895 MB | 58 advisories, 3 critical, 9 high |
+| `@ardrive/turbo-upload@0.2.0` | 1 | 452 KB | none |
+
+Measured 2026-09-09 into an empty project with `npm install` and `npm audit`.
+Re-run it rather than trusting this table: the numbers move as either tree
+changes, and the point is the shape, not the digits.
 
 When you are adding Arweave storage to *someone else's* server, that tree is
-what gets the pull request rejected. This package does one thing completely,
-with nothing else in it.
+what a dependency review rejects, and those three criticals are what it asks
+about first. This package does one thing completely, with nothing else in it.
+
+## Coming from `@ardrive/turbo-sdk`
+
+The realistic reader already has turbo-sdk wired into a server and wants one
+upload path out of it. The call maps directly:
+
+```js
+// before
+import { TurboFactory } from "@ardrive/turbo-sdk";
+const turbo = TurboFactory.authenticated({ privateKey: jwk });
+const { id } = await turbo.uploadFile({
+  fileStreamFactory: () => Readable.from(buffer),
+  fileSizeFactory: () => buffer.length,
+  dataItemOpts: { tags },
+});
+
+// after
+const { TurboUpload } = require("@ardrive/turbo-upload");
+const client = new TurboUpload({ jwk });
+const { id } = await client.upload({ data: buffer, tags });
+```
+
+What changes beyond the call:
+
+| turbo-sdk | here |
+|---|---|
+| `TurboFactory.authenticated({ privateKey })` | `new TurboUpload({ jwk })`, and a bad key throws at construction rather than at first upload |
+| stream factories | a `Buffer`, `Uint8Array` or string. There is no streaming |
+| `getBalance()` returns a signed-in account | `getBalance()` returns zeros for an unknown wallet, because the service answers `404` |
+| errors arrive as `fetch failed` | typed errors that name the endpoint, the status and the method |
+| any supported token | Arweave JWKs only. Anything else throws at construction |
+
+**Keep turbo-sdk** for the things in the next section. Nothing stops both being
+installed; they share no state.
 
 ## What it does
 
@@ -65,8 +116,8 @@ dependency count is 0 instead of 344.
 | `jwk` | *required* | Arweave JWK, **an object or a JSON string** |
 | `uploadUrl` | `https://upload.ardrive.io` | |
 | `paymentUrl` | `https://payment.ardrive.io` | |
-| `timeoutMs` | `60000` | **per request, not per call** — see below |
-| `retry` | `{retries:3, minDelayMs:500, maxDelayMs:8000, retryStatuses:[408,429,500,502,503,504]}` | **partial** — override one field, keep the rest |
+| `timeoutMs` | `60000` | **per request, not per call**, see below |
+| `retry` | `{retries:3, minDelayMs:500, maxDelayMs:8000, retryStatuses:[408,429,500,502,503,504]}` | **partial**: override one field, keep the rest |
 | `token` | `"arweave"` | anything else throws immediately |
 | `fetch` | global `fetch` | injectable for tests and proxies |
 
@@ -123,7 +174,7 @@ Lower `timeoutMs` alone is not enough: it shortens each attempt, not the call.
 
 Signs and uploads. Returns the service response plus `id`, `owner` and
 `byteCount`. The returned `id` is **checked against the id computed locally from
-our own signature** — a mismatch throws rather than handing back an id you did
+our own signature**, and a mismatch throws rather than handing back an id you did
 not produce.
 
 ### `client.sign({ data, tags?, target?, anchor? })` → `{ binary, id, idB64Url, signature }`
@@ -157,7 +208,7 @@ is a zero balance, not an error, and is normalised to zeros.
 
 ### `await client.getInfo()` / `await client.getFreeUploadLimitBytes()`
 
-Service info, including the free-upload threshold — **107,520 bytes** at the time
+Service info, including the free-upload threshold, **107,520 bytes** at the time
 of writing. It is read live from `/v1/info` rather than hardcoded here, because
 it is service policy and will change. Items at or below it upload with no credit
 balance at all.
@@ -179,7 +230,7 @@ Constants: `MAX_TAG_BYTES` (4096) · `MIN_ITEM_SIZE` (1044) ·
 
 ### Types
 
-Hand-written `index.d.ts` — no `typescript` dependency, no `@types/*`.
+Hand-written `index.d.ts`, so no `typescript` dependency, no `@types/*`.
 
 ```ts
 import type { Tag } from "@ardrive/turbo-upload";
@@ -195,9 +246,9 @@ Every error extends `TurboError` and carries its context.
 
 | class | when | carries |
 |---|---|---|
-| `TurboKeyError` | bad/missing/non-RSA-4096 JWK | — |
-| `TurboConfigError` | bad option or unsupported token | — |
-| `TurboValidationError` | bad arguments to a call | — |
+| `TurboKeyError` | bad/missing/non-RSA-4096 JWK | none |
+| `TurboConfigError` | bad option or unsupported token | none |
+| `TurboValidationError` | bad arguments to a call | none |
 | `TurboNetworkError` | no response at all (DNS, TLS, reset) | `endpoint`, `method`, `cause` |
 | `TurboTimeoutError` | exceeded `timeoutMs`, or caller aborted | `endpoint`, `timeoutMs`, `cause` |
 | `TurboHTTPError` | non-2xx | `status`, `endpoint`, `method`, `body` |
@@ -205,7 +256,7 @@ Every error extends `TurboError` and carries its context.
 
 ```
 TurboHTTPError: POST https://upload.ardrive.io/v1/tx failed: HTTP 402 Payment Required
-  — {"error":"Insufficient balance"}
+  {"error":"Insufficient balance"}
 ```
 
 rather than a bare `fetch failed`.
@@ -236,7 +287,7 @@ const client = new TurboUpload({ jwk, fetch: fetchStub });
 **Two things worth knowing before you write the stub.** `uploadSigned` checks
 that the id the service returned matches the one it computed locally, so a stub
 returning a fixed id fails with `TurboVerificationError` rather than the thing
-you were testing — return the id of what was actually POSTed. And signing an
+you were testing. Return the id of what was actually POSTed. And signing an
 RSA-4096 key takes tens of milliseconds, so generate it once per suite, not per
 test.
 
@@ -265,7 +316,7 @@ this package had just uploaded.
 
 > **The testnet hostnames contain `.services.`**, which is why they are
 > constants rather than prose. `upload.ar-io.dev`, without `.services.`,
-> **resolves** and serves an HTML page on every path including `/v1/tx` — so a
+> **resolves** and serves an HTML page on every path including `/v1/tx`, so a
 > wrong hostname gives you a `200` with an HTML body instead of an obvious
 > failure. Import the constant and the question never arises.
 
@@ -280,7 +331,7 @@ most likely to be "fixed" into a bug.
 
 ANS-104 says RSA-PSS and stops. The reference implementation (arbundles) signs
 through Node without setting `saltLength`, and **Node's default for signing is
-`RSA_PSS_SALTLEN_MAX_SIGN`** — the maximum the modulus allows:
+`RSA_PSS_SALTLEN_MAX_SIGN`**, the maximum the modulus allows:
 
 ```
 emBits = 4096 - 1 = 4095
@@ -302,8 +353,8 @@ against the reference, and **is accepted by the live service today**. It would
 only fail later, at a stricter verifier.
 
 This package therefore sets 478 **explicitly** rather than inheriting a default,
-and the test suite **recovers the salt length off the wire** — computing
-`sig^e mod n`, unmasking the DB with MGF1 and counting the bytes — instead of
+and the test suite **recovers the salt length off the wire**, computing
+`sig^e mod n`, unmasking the DB with MGF1 and counting the bytes, instead of
 trusting the flag. `client.verify(item, { strictSaltLength: true })` applies the
 same strictness when verifying.
 
@@ -332,8 +383,8 @@ Publisher, naming the organization `ardriveapp`, the repository
 ## Conformance
 
 The package ships **22 conformance vectors** in `vectors/vectors.json`, generated
-from `@dha-team/arbundles@1.0.4` — the de-facto reference that the gateways and
-bundlers actually run — and the test suite ships with it, so you can re-prove all
+from `@dha-team/arbundles@1.0.4`, the de-facto reference that the gateways and
+bundlers actually run, and the test suite ships with it, so you can re-prove all
 of this from your own `node_modules`:
 
 ```bash
@@ -359,10 +410,10 @@ Some things worth knowing if you reimplement this format:
 - **`MAX_TAG_BYTES` (4096) is a cap on the serialized byte length**, not the tag
   count, and applies on read as well as write.
 - **Absent target/anchor are zero-length elements in the deep hash**, not omitted
-  ones — the list is always 8 long.
+  ones. The list is always 8 long.
 - **Three hash functions in one operation**: SHA-384 for the transcript, SHA-256
   for the signature digest, SHA-256 for the id.
-- **`id = SHA-256(signature)`** — so ids are randomised and not reproducible from
+- **`id = SHA-256(signature)`**, so ids are randomised and not reproducible from
   the inputs.
 - Tag strings go through arbundles' hand-rolled UTF-8 encoder below 64 bytes,
   which writes unpaired UTF-16 surrogates as WTF-8. Reproduced here bug-for-bug,
@@ -372,7 +423,7 @@ Some things worth knowing if you reimplement this format:
 
 ## Requirements
 
-Node **>= 18.17.0** (global `fetch`, `AbortSignal.any`). Server-side only —
+Node **>= 18.17.0** (global `fetch`, `AbortSignal.any`). Server-side only:
 there is no browser build, and a JWK does not belong in a browser anyway.
 
 ## License

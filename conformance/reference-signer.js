@@ -1,10 +1,10 @@
 "use strict";
 /**
- * reference-signer.js — a zero-dependency ANS-104 data-item signer (signature type 1,
+ * reference-signer.js, a zero-dependency ANS-104 data-item signer (signature type 1,
  * Arweave RSA-4096 / RSA-PSS-SHA256).
  *
  * Dependencies: node:crypto and node:buffer ONLY. No npm packages, at all, ever.
- * arbundles is never required from this file — it is the thing this file replaces.
+ * arbundles is never required from this file, it is the thing this file replaces.
  *
  * Everything here is derived from the byte layout documented in ./spec.md and
  * pinned by ./vectors.json.
@@ -74,7 +74,7 @@ function deepHash(chunk) {
 }
 
 /* ------------------------------------------------------------------------- *
- * Tag serialization — Avro binary encoding of `array<{name:string,value:string}>` *
+ * Tag serialization, Avro binary encoding of `array<{name:string,value:string}>` *
  * ------------------------------------------------------------------------- */
 
 /** Avro zigzag varint. */
@@ -320,7 +320,7 @@ function parseDataItem(binary) {
 /**
  * The exact message that gets signed: deepHash over the 8-element list
  * ["dataitem", "1", sigType, owner, target, anchor, tags, data].
- * Absent target/anchor participate as zero-length blobs — they are NOT skipped.
+ * Absent target/anchor participate as zero-length blobs, they are NOT skipped.
  */
 function getSignatureData(binary) {
   const it = parseDataItem(binary);
