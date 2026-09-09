@@ -5,7 +5,7 @@
  * Dependencies: node:crypto and node:buffer. Nothing else, ever.
  *
  * Byte layout, deep-hash transcript and tag encoding are pinned by
- * vectors/vectors.json — 22 conformance vectors generated from
+ * vectors/vectors.json, 22 conformance vectors generated from
  * @dha-team/arbundles@1.0.4, the de-facto reference implementation that the
  * gateways and bundlers actually run. Where ANS-104 is silent, arbundles'
  * behaviour is the answer; those places are commented DE-FACTO below.
@@ -31,7 +31,7 @@ const SIG_CONFIG = {
 };
 const SIG_TYPE_ARWEAVE = 1;
 
-/** Cap on the serialized tag region — on BYTES, not tag count. Enforced on read and write. */
+/** Cap on the serialized tag region, on BYTES, not tag count. Enforced on read and write. */
 const MAX_TAG_BYTES = 4096;
 
 /** arbundles refuses to parse anything shorter. */
@@ -66,7 +66,7 @@ function byteArrayToLong(bytes) {
 }
 
 /* ------------------------------------------------------------------ *
- * deepHash — Arweave's SHA-384 structured transcript hash             *
+ * deepHash, Arweave's SHA-384 structured transcript hash             *
  * ------------------------------------------------------------------ */
 
 const sha384 = (b) => createHash("sha384").update(b).digest();
@@ -80,7 +80,7 @@ const sha256 = (b) => createHash("sha256").update(b).digest();
  *             for each child c: acc = SHA384(acc || deepHash(c))
  *
  * The length is its DECIMAL ASCII representation, concatenated with no
- * separator — the tag for a 512-byte blob is the 7 bytes `blob512`.
+ * separator, the tag for a 512-byte blob is the 7 bytes `blob512`.
  *
  * @param {Buffer|Uint8Array|string|Array} chunk
  * @returns {Buffer} 48-byte SHA-384 digest
@@ -97,7 +97,7 @@ function deepHash(chunk) {
 }
 
 /* ------------------------------------------------------------------ *
- * Tags — Avro binary encoding of array<record{name:string,value:string}> *
+ * Tags, Avro binary encoding of array<record{name:string,value:string}> *
  * ------------------------------------------------------------------ */
 
 /** Avro zigzag varint. 1 -> 0x02, 64 -> 0x80 0x01. */
@@ -137,7 +137,7 @@ function readVarLong(buf, state) {
  *                       substitutes U+FFFD (EF BF BD)
  *
  * For every well-formed string the two agree with each other and with standard
- * UTF-8, so this only matters for lone surrogates — which JS strings can hold
+ * UTF-8, so this only matters for lone surrogates, which JS strings can hold
  * and most other languages' strings cannot. The declared length is
  * Buffer.byteLength (3 either way), so the varint framing never desyncs: the
  * item stays structurally valid and verifiable, it just gets a DIFFERENT ID
@@ -295,7 +295,7 @@ function addressFromOwner(rawOwner) {
  * @param {Buffer|Uint8Array|string} [opts.data]
  * @param {Array<{name:string,value:string}>} [opts.tags]
  * @param {string|Buffer} [opts.target] base64url string decoding to exactly 32 bytes
- * @param {string|Buffer} [opts.anchor] 32 RAW bytes — a string is its UTF-8 bytes, NOT base64url
+ * @param {string|Buffer} [opts.anchor] 32 RAW bytes, a string is its UTF-8 bytes, NOT base64url
  * @param {Buffer} opts.owner 512-byte raw modulus
  * @returns {Buffer}
  */
@@ -338,7 +338,7 @@ function createDataItem(opts) {
   if (anchor && anchor.length !== 32) {
     throw new TurboValidationError(
       `Anchor must be 32 bytes, got ${anchor.length}. ` +
-        `Unlike target, a string anchor is used as RAW BYTES, not base64url — ` +
+        `Unlike target, a string anchor is used as RAW BYTES, not base64url, ` +
         `pass 32 raw bytes or a 32-character string.`,
     );
   }
@@ -426,7 +426,7 @@ function parseDataItem(binary) {
  *   ["dataitem", "1", String(sigType), owner, target, anchor, tags, data]
  *
  * DE-FACTO: absent target/anchor participate as ZERO-LENGTH blobs, they are not
- * skipped — the list is always 8 long. Element 2 is the ANS-104 format version
+ * skipped, the list is always 8 long. Element 2 is the ANS-104 format version
  * and element 3 is the signature type as DECIMAL ASCII; both are "1" for type 1
  * and they are different things.
  */
@@ -459,18 +459,18 @@ function maxSaltLength(modBits, hLen) {
 /**
  * 478 bytes. THE most important constant in this package.
  *
- * WHY 478 AND NOT 32 — read this before changing anything here.
+ * WHY 478 AND NOT 32, read this before changing anything here.
  *
  * arbundles signs with Node's `createSign("sha256").sign({key, padding:
  * RSA_PKCS1_PSS_PADDING})` and does NOT set saltLength. Node's default for
- * SIGNING is RSA_PSS_SALTLEN_MAX_SIGN — the maximum the modulus allows:
+ * SIGNING is RSA_PSS_SALTLEN_MAX_SIGN, the maximum the modulus allows:
  *
  *     emBits = modBits - 1     = 4095
  *     emLen  = ceil(emBits/8)  = 512
  *     sLen   = emLen - hLen - 2 = 512 - 32 - 2 = 478
  *
  * Almost every other crypto library defaults PSS to the DIGEST length (32).
- * That produces a structurally valid signature that verifies fine today — and
+ * That produces a structurally valid signature that verifies fine today, and
  * is non-conformant. It does not fail loudly, because verification is
  * salt-agnostic: arbundles verifies through arweave.js, which also passes no
  * saltLength, and Node's default for VERIFYING is RSA_PSS_SALTLEN_AUTO, which

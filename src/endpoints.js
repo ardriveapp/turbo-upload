@@ -6,7 +6,7 @@
  * published @ardrive/turbo-sdk ships `upload.ardrive.dev` / `payment.ardrive.dev`
  * as its development configuration, and BOTH ARE NXDOMAIN. There is also a
  * `upload.ar-io.dev` that RESOLVES and serves an HTML SPA on every path,
- * including /v1/tx — so pointing at it yields a 200 with an HTML body rather
+ * including /v1/tx, so pointing at it yields a 200 with an HTML body rather
  * than an obvious failure. The working testnet hosts have `.services.` in them.
  */
 
@@ -31,7 +31,7 @@ const PRODUCTION = Object.freeze({
   gatewayUrl: "https://turbo-gateway.com",
 });
 
-/** Testnet / dev. Note `.services.` — this is NOT upload.ar-io.dev. */
+/** Testnet / dev. Note `.services.`, this is NOT upload.ar-io.dev. */
 const TESTNET = Object.freeze({
   name: "testnet",
   uploadUrl: "https://upload.services.ar-io.dev",

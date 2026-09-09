@@ -1,6 +1,6 @@
 "use strict";
 /**
- * generate-vectors.js — emit vectors.json using @dha-team/arbundles as the reference.
+ * generate-vectors.js, emit vectors.json using @dha-team/arbundles as the reference.
  * This file is the ONLY place arbundles produces expected values. reference-signer.js
  * never sees it.
  *
@@ -43,7 +43,7 @@ function offsetsOf(bin) {
 
 /**
  * A deliberately naive, self-contained Avro tag serializer using the platform's
- * STANDARD UTF-8 encoder — i.e. what a Python/Rust/Java implementer writes without
+ * STANDARD UTF-8 encoder, i.e. what a Python/Rust/Java implementer writes without
  * knowing about arbundles' internals. Used only to detect divergence, never as the
  * expected value.
  */
@@ -92,7 +92,7 @@ async function buildVector(c) {
   const skeleton = Buffer.from(unsigned);
   skeleton.fill(0, 2, 2 + SIG_LEN + OWNER_LEN);
 
-  // One sample signature. NOT reproducible (PSS is randomised) — for verifier fixtures only.
+  // One sample signature. NOT reproducible (PSS is randomised), for verifier fixtures only.
   const signature = Buffer.from(await signer.sign(deepHashOut));
   const id = sha256(signature);
 

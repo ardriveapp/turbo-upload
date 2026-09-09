@@ -1,4 +1,4 @@
-# ANS-104 data-item signing, signature type 1 — an implementable spec
+# ANS-104 data-item signing, signature type 1, an implementable spec
 
 Scope: producing and verifying a **single ANS-104 data item** signed with **signature
 type 1 (`arweave`, RSA-4096 / RSA-PSS-SHA256)**. Bundles (the container that packs many
@@ -18,7 +18,7 @@ reference implementation of this format.
 ## 1. Byte layout
 
 All multi-byte integers in the *container* are **unsigned little-endian**. (The integers
-inside the tag region are a different encoding — see §3.)
+inside the tag region are a different encoding, see §3.)
 
 | Field | Offset | Width | Notes |
 |---|---|---|---|
@@ -37,11 +37,11 @@ inside the tag region are a different encoding — see §3.)
 The 512/512 widths are specific to signature type 1; other types have different
 `signature_length` / `owner_length` and every offset above shifts accordingly.
 
-**Smallest possible item: 1044 bytes** — `2 + 512 + 512 + 1 + 1 + 16 + 0` — with no
+**Smallest possible item: 1044 bytes**, `2 + 512 + 512 + 1 + 1 + 16 + 0`, with no
 target, no anchor, no tags, no data. Vector `empty-data-empty-tags` pins it.
 
 The presence bytes are read as `== 1`. **DE-FACTO:** arbundles treats any byte that is
-not exactly `0x01` as *absent* — measured for `0x00`, `0x02` and `0xFF` — so a `0x02` in
+not exactly `0x01` as *absent*, measured for `0x00`, `0x02` and `0xFF`, so a `0x02` in
 the target presence byte silently reinterprets the following 32 bytes as the start of the
 anchor field and every later offset moves. Write only `0x00` or `0x01`, and read anything
 else as absent, which is what makes such an item fail signature verification rather than
@@ -63,11 +63,11 @@ exist to catch exactly this.
 
 Both are **exactly 32 bytes** when present.
 
-- **`target`** is an Arweave address — a 32-byte value conventionally written as a 43-char
+- **`target`** is an Arweave address, a 32-byte value conventionally written as a 43-char
   base64url string. When an API takes a string, it is **base64url-decoded**.
 - **`anchor`** is 32 arbitrary bytes used for replay protection.
 
-> **DE-FACTO — the asymmetry that catches everyone.** arbundles decodes `target` from
+> **DE-FACTO, the asymmetry that catches everyone.** arbundles decodes `target` from
 > base64url but takes `anchor` as **raw bytes**: `Buffer.from(opts.anchor)`, i.e. the
 > string's UTF-8 encoding. So a 32-*character* ASCII anchor works and a 43-character
 > base64url anchor throws `Anchor must be 32 bytes`. Two adjacent fields of the same
@@ -109,14 +109,14 @@ encode(n): m = n >= 0 ? 2n : -2n - 1
 ```
 
 So `1 → 0x02`, `5 → 0x0a`, `12 → 0x18`, `64 → 0x80 0x01`. The tag count crosses into two
-bytes at 64 tags — vector `tag-count-varint-boundary` pins `80 01`.
+bytes at 64 tags, vector `tag-count-varint-boundary` pins `80 01`.
 
 ### 3.2 The declared length is the UTF-8 **byte** length
 
 Not the character count, not the UTF-16 code-unit count. Vector `unicode-tags` covers
 Latin-1 accents, CJK, Cyrillic and astral-plane emoji (`🎉` is 4 bytes).
 
-### 3.3 DE-FACTO — arbundles has two UTF-8 encoders and they disagree
+### 3.3 DE-FACTO, arbundles has two UTF-8 encoders and they disagree
 
 `AVSCTap.writeString` branches on the string's UTF-8 byte length:
 
@@ -146,7 +146,7 @@ not standard UTF-8.
 **What an implementer should do.** Rust `String` and Go `string` cannot hold an unpaired
 surrogate, so **use your language's standard UTF-8 encoder and the divergence cannot
 arise**. Python `str` *can* hold one (`"\ud800"`, and `surrogatepass` will encode it as
-`ED A0 80`) — so a Python implementation should either reject unpaired surrogates in tag
+`ED A0 80`), so a Python implementation should either reject unpaired surrogates in tag
 strings up front, or deliberately mirror the table above. Do not let it happen by
 accident: 21 of the 22 vectors are byte-identical under strict UTF-8, and the 22nd is the
 whole point.
@@ -163,7 +163,7 @@ equals the declared `tag_count`, rejecting the item if it does not.
 
 ---
 
-## 4. The deep hash — what actually gets signed
+## 4. The deep hash, what actually gets signed
 
 The signed message is **not** the item bytes. It is a 48-byte SHA-384 digest computed over
 a structured transcript, so that field boundaries cannot be shifted without changing the
@@ -186,8 +186,8 @@ The message for a data item is `deepHash` of this **8-element list, in this orde
 | # | element | bytes |
 |---|---|---|
 | 1 | `"dataitem"` | 8, ASCII |
-| 2 | `"1"` | 1, ASCII — the **format version**, always `"1"` |
-| 3 | `signature_type` as decimal ASCII | 1 for type 1 — `"1"` |
+| 2 | `"1"` | 1, ASCII, the **format version**, always `"1"` |
+| 3 | `signature_type` as decimal ASCII | 1 for type 1, `"1"` |
 | 4 | `owner` | 512 |
 | 5 | `target` | 32, or **0 if absent** |
 | 6 | `anchor` | 32, or **0 if absent** |
@@ -199,7 +199,7 @@ different things. Element 2 is the *ANS-104 format version*; element 3 is the *s
 type*, stringified in **decimal**, not written as a byte.
 
 For a data item with no target, no anchor, no tags and no data the chunk widths are
-`[8, 1, 1, 512, 0, 0, 0, 0]` — see `deep_hash_input_chunks_hex` in every vector, which is
+`[8, 1, 1, 512, 0, 0, 0, 0]`, see `deep_hash_input_chunks_hex` in every vector, which is
 the fastest way to localise a bug.
 
 **DE-FACTO:** ANS-104 describes the deep hash informally; the SHA-384 choice, the
@@ -209,13 +209,13 @@ and the id is SHA-256.** Three different hash usages in one operation.
 
 ---
 
-## 5. Signature — RSA-PSS
+## 5. Signature, RSA-PSS
 
 | parameter | value |
 |---|---|
 | algorithm | RSASSA-PSS |
 | modulus | 4096 bits (512 bytes) |
-| public exponent | 65537 (`AQAB`) — **not carried on the wire**, see §6 |
+| public exponent | 65537 (`AQAB`), **not carried on the wire**, see §6 |
 | message digest | SHA-256 |
 | MGF | MGF1 with SHA-256 |
 | **salt length** | **478 bytes** (`RSA_PSS_SALTLEN_MAX_SIGN`) |
@@ -244,7 +244,7 @@ sLen   = emLen - hLen - 2 = 512 - 32 - 2 = 478
 ```
 
 **478 bytes**, verified empirically by recovering the encoded message
-(`sig^e mod n` with no padding removal) and unmasking the DB — see the `[global]` section
+(`sig^e mod n` with no padding removal) and unmasking the DB, see the `[global]` section
 of `verify.js`, which re-derives it on every run.
 
 Most crypto libraries default PSS to the **digest length (32)**. An implementation that
@@ -256,7 +256,7 @@ takes that default produces a structurally valid, verifiable signature that is
 | Node `crypto` | `saltLength: crypto.constants.RSA_PSS_SALTLEN_MAX_SIGN` (or omit it) |
 | Python `cryptography` | `padding.PSS(mgf=MGF1(SHA256()), salt_length=padding.PSS.MAX_LENGTH)` |
 | Rust `rsa` | the PSS variant taking an explicit salt length; pass 478 |
-| Go `crypto/rsa` | `&rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthAuto, Hash: crypto.SHA256}` — Go's "Auto" means *maximum* when signing |
+| Go `crypto/rsa` | `&rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthAuto, Hash: crypto.SHA256}`, Go's "Auto" means *maximum* when signing |
 | OpenSSL CLI | `-sigopt rsa_pss_saltlen:max` |
 
 Whatever the API, **assert the result rather than trusting the flag**: sign a known
@@ -274,7 +274,7 @@ The `sample_signature` block in each vector is a one-off fixture for testing a *
 ### 5.3 Verification is more permissive than signing
 
 arbundles verifies through arweave.js's node driver, which likewise passes **no**
-`saltLength` — and Node's default for *verification* is `RSA_PSS_SALTLEN_AUTO`, which
+`saltLength`, and Node's default for *verification* is `RSA_PSS_SALTLEN_AUTO`, which
 recovers the salt length from the encoded message and accepts **any** value. In Node both
 constants are literally `-2`, which is how one omitted parameter means "maximum" on the
 signing side and "anything" on the verifying side.
@@ -285,7 +285,7 @@ against the reference and still be non-conformant. Cross-verification alone does
 it; the explicit salt-length recovery in `verify.js` does.
 
 > **Unresolved.** Whether the Arweave gateway and node accept a non-maximum salt length was
-> not tested here — it needs a live endpoint. Until someone checks, **emit the maximum
+> not tested here, it needs a live endpoint. Until someone checks, **emit the maximum
 > salt length**, which is what every existing producer emits.
 
 ---
@@ -313,7 +313,7 @@ id = SHA-256( signature )          // the 512 raw signature bytes
 ```
 
 Base64url-encoded (no padding) for display; 43 characters. It is a hash of the
-**signature**, not of the item and not of the deep hash — which is why the id inherits
+**signature**, not of the item and not of the deep hash, which is why the id inherits
 PSS's randomness and is not reproducible from the inputs alone.
 
 ---

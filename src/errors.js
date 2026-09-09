@@ -4,7 +4,7 @@
  *
  * Design note: every error carries enough context to debug it from the message
  * alone. `@ardrive/turbo-sdk` surfaces a DNS failure as a bare `fetch failed`
- * with no endpoint, no status and no body — you cannot tell a typo'd hostname
+ * with no endpoint, no status and no body, you cannot tell a typo'd hostname
  * from a 500 from a timeout. Every error here names the endpoint, and HTTP
  * errors carry the status and the (truncated) response body.
  */
@@ -64,7 +64,7 @@ class TurboTimeoutError extends TurboError {
 /** A non-2xx HTTP response. Carries status, endpoint and response body. */
 class TurboHTTPError extends TurboError {
   constructor({ status, statusText, endpoint, method, body, cause }) {
-    const detail = body ? ` — ${truncate(typeof body === "string" ? body : JSON.stringify(body))}` : "";
+    const detail = body ? `, ${truncate(typeof body === "string" ? body : JSON.stringify(body))}` : "";
     super(`${method} ${endpoint} failed: HTTP ${status}${statusText ? ` ${statusText}` : ""}${detail}`, { cause });
     this.status = status;
     this.statusText = statusText;
@@ -75,11 +75,6 @@ class TurboHTTPError extends TurboError {
   }
 }
 
-/**
- * The upload service returned an id that is not SHA-256 of the signature we
- * sent. Either the service mutated the item or we are talking to something that
- * is not a Turbo upload service. Never ignore this.
- */
 /**
  * The service refused the upload because the wallet cannot pay for it: HTTP 402.
  *
@@ -96,6 +91,11 @@ class TurboHTTPError extends TurboError {
  */
 class TurboPaymentError extends TurboHTTPError {}
 
+/**
+ * The upload service returned an id that is not SHA-256 of the signature we
+ * sent. Either the service mutated the item or we are talking to something that
+ * is not a Turbo upload service. Never ignore this.
+ */
 class TurboVerificationError extends TurboError {
   constructor(message, { expectedId, receivedId, endpoint } = {}) {
     super(message);

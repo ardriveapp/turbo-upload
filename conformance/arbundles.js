@@ -1,6 +1,6 @@
 "use strict";
 /**
- * arbundles.js — loader shim.
+ * arbundles.js, loader shim.
  *
  * `require("@dha-team/arbundles")` THROWS on a clean install: the package index pulls in
  * ./file/index.js -> FileDataItem.js, which `require("axios")`, and axios appears in

@@ -1,6 +1,6 @@
 "use strict";
 /**
- * cases.js — the corpus definition. Shared by generate-vectors.js and (for names only) verify.js.
+ * cases.js, the corpus definition. Shared by generate-vectors.js and (for names only) verify.js.
  * Every case is pure data: no arbundles, no reference-signer.
  */
 const { Buffer } = require("node:buffer");
@@ -71,7 +71,7 @@ module.exports = [
   },
   {
     name: "unicode-tags",
-    description: "Non-ASCII in both tag names and values: Latin-1 accents, CJK, Cyrillic, and an astral-plane emoji (surrogate pair). The declared varint length is the UTF-8 BYTE length, not the character or UTF-16 code-unit count — this is where naive encoders break.",
+    description: "Non-ASCII in both tag names and values: Latin-1 accents, CJK, Cyrillic, and an astral-plane emoji (surrogate pair). The declared varint length is the UTF-8 BYTE length, not the character or UTF-16 code-unit count, this is where naive encoders break.",
     data: Buffer.from("unicode", "utf8"),
     tags: [
       { name: "Título", value: "café résumé" },
@@ -101,7 +101,7 @@ module.exports = [
   },
   {
     name: "tag-value-64-bytes",
-    description: "A well-formed UTF-8 tag value of exactly 64 bytes — the last length that takes arbundles' hand-rolled encoder path. Must byte-match the 65-byte case's encoder.",
+    description: "A well-formed UTF-8 tag value of exactly 64 bytes, the last length that takes arbundles' hand-rolled encoder path. Must byte-match the 65-byte case's encoder.",
     data: Buffer.from("boundary", "utf8"),
     tags: [{ name: "b", value: "é".repeat(32) }], // 2 bytes each => 64
   },
@@ -113,7 +113,7 @@ module.exports = [
   },
   {
     name: "lone-surrogate-tag-short",
-    description: "KNOWN DIVERGENCE. An unpaired UTF-16 high surrogate (U+D800) in a tag value under 64 bytes. arbundles' hand-rolled encoder emits the raw code point as WTF-8 (ED A0 80) while declaring Buffer.byteLength (3), which is the length of the standard-UTF-8 replacement character. Standard UTF-8 would emit EF BF BD. Same width, different bytes, so nothing desyncs and nothing errors — a reimplementation just silently produces a different id.",
+    description: "KNOWN DIVERGENCE. An unpaired UTF-16 high surrogate (U+D800) in a tag value under 64 bytes. arbundles' hand-rolled encoder emits the raw code point as WTF-8 (ED A0 80) while declaring Buffer.byteLength (3), which is the length of the standard-UTF-8 replacement character. Standard UTF-8 would emit EF BF BD. Same width, different bytes, so nothing desyncs and nothing errors, a reimplementation just silently produces a different id.",
     data: Buffer.from("surrogate", "utf8"),
     tags: [{ name: "s", value: "\ud800" }],
   },
@@ -125,7 +125,7 @@ module.exports = [
   },
   {
     name: "binary-data-all-bytes",
-    description: "Data is all 256 byte values 0x00..0xFF — not valid UTF-8. Data is an opaque byte string and must never be routed through a text codec.",
+    description: "Data is all 256 byte values 0x00..0xFF, not valid UTF-8. Data is an opaque byte string and must never be routed through a text codec.",
     data: allBytes,
     tags: [{ name: "Content-Type", value: "application/octet-stream" }],
   },
@@ -144,7 +144,7 @@ module.exports = [
   },
   {
     name: "anchor-present",
-    description: "Anchor present, target absent. NOTE arbundles takes the anchor argument as a raw string and Buffer.from()s it — the anchor is 32 RAW BYTES, not a base64url-decoded value the way target is. Passing a 43-char base64url anchor throws.",
+    description: "Anchor present, target absent. NOTE arbundles takes the anchor argument as a raw string and Buffer.from()s it, the anchor is 32 RAW BYTES, not a base64url-decoded value the way target is. Passing a 43-char base64url anchor throws.",
     data: Buffer.from("with anchor", "utf8"),
     tags: [],
     anchor: ANCHOR_STR,

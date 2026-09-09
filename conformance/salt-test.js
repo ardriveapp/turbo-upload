@@ -4,7 +4,7 @@ const data = Buffer.from(`salt-length conformance probe ${new Date().toISOString
 const tags = [{ name: "App-Name", value: "pds-salt-probe" }, { name: "Content-Type", value: "text/plain" }];
 (async () => {
   for (const [label, opts] of [["conformant (478, arbundles default)", {}],
-                               ["digest-length (32) — what a reimplementer picks", { saltLength: 32 }]]) {
+                               ["digest-length (32), what a reimplementer picks", { saltLength: 32 }]]) {
     const item = S.signDataItem(jwk, { data: Buffer.concat([data, Buffer.from(label)]), tags, ...opts });
     const buf = Buffer.from(item.binary);
     const res = await fetch("https://upload.services.ar-io.dev/v1/tx", {

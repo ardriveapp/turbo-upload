@@ -17,7 +17,7 @@ const {
 /**
  * Default request timeout.
  *
- * turbo-sdk sets NO timeout anywhere — a hung endpoint hangs the caller
+ * turbo-sdk sets NO timeout anywhere, a hung endpoint hangs the caller
  * forever, which in a server integration means a leaked request handler and
  * eventually a wedged process. A default is not optional for library code.
  */
@@ -44,7 +44,7 @@ function resolveRetryConfig(retry) {
   if (retry === false || retry === null) return { ...DEFAULT_RETRY, retries: 0 };
   if (retry === undefined) return { ...DEFAULT_RETRY };
   if (typeof retry !== "object") {
-    throw new TurboConfigError(`\`retry\` must be an object, false, or undefined — got ${typeof retry}.`);
+    throw new TurboConfigError(`\`retry\` must be an object, false, or undefined, got ${typeof retry}.`);
   }
   const merged = { ...DEFAULT_RETRY, ...retry };
   for (const field of ["retries", "minDelayMs", "maxDelayMs"]) {

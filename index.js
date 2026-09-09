@@ -1,6 +1,6 @@
 "use strict";
 /**
- * @ardrive/turbo-upload — sign ANS-104 data items with an Arweave JWK and upload
+ * @ardrive/turbo-upload, sign ANS-104 data items with an Arweave JWK and upload
  * them to a Turbo upload service. Zero runtime dependencies.
  *
  * NOTE ON THE SHAPE OF THIS FILE. Everything is destructured into a local
@@ -12,7 +12,7 @@
  *
  *     import { TurboHTTPError } from "@ardrive/turbo-upload";
  *
- * becomes a SyntaxError for an ESM caller while `require()` keeps working — a
+ * becomes a SyntaxError for an ESM caller while `require()` keeps working, a
  * failure that only shows up in someone else's project. The
  * "every public export is importable BY NAME from ESM" test pins this.
  */

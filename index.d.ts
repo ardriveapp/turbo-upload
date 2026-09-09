@@ -1,5 +1,5 @@
 /**
- * @ardrive/turbo-upload — sign ANS-104 data items with an Arweave JWK and upload
+ * @ardrive/turbo-upload, sign ANS-104 data items with an Arweave JWK and upload
  * them to a Turbo upload service. Zero runtime dependencies.
  *
  * Hand-written declarations: no `typescript` build step, no `@types/*`, nothing
@@ -71,7 +71,7 @@ export interface SignOptions {
   target?: string | Buffer | Uint8Array;
   /**
    * 32 bytes of replay protection. A string is used as RAW UTF-8 BYTES, NOT
-   * base64url — the opposite convention to `target`. Pass 32 raw bytes or a
+   * base64url, the opposite convention to `target`. Pass 32 raw bytes or a
    * 32-character string.
    */
   anchor?: string | Buffer | Uint8Array;
@@ -149,7 +149,7 @@ export interface EndpointConfig {
 export declare const PRODUCTION: EndpointConfig;
 
 /**
- * Testnet / dev. Note the `.services.` — this is NOT `upload.ar-io.dev`, which
+ * Testnet / dev. Note the `.services.`, this is NOT `upload.ar-io.dev`, which
  * resolves but serves an HTML SPA on every path. The published
  * @ardrive/turbo-sdk ships `upload.ardrive.dev`, which is NXDOMAIN.
  */
@@ -202,7 +202,13 @@ export declare class TurboUpload {
  * Low-level ANS-104                                                   *
  * ------------------------------------------------------------------ */
 
-export interface CreateDataItemOptions extends SignOptions {
+/**
+ * `data` is optional here and required in `SignOptions`, so this omits it and
+ * redeclares it. Extending directly is a type error: an interface cannot widen
+ * an inherited required property to optional. `createDataItem` genuinely
+ * accepts an item with no data; `sign()` does not.
+ */
+export interface CreateDataItemOptions extends Omit<SignOptions, "data"> {
   /** 512-byte raw RSA modulus. */
   owner: Buffer | Uint8Array;
   /** "arbundles" (default, byte-exact with the reference) or "utf8" (strict). */
@@ -289,17 +295,17 @@ export declare function parseJwk(input: JWKInput): ArweaveJWK;
 /** The 512-byte modulus from a JWK. */
 export declare function ownerFromJwk(jwk: ArweaveJWK): Buffer;
 
-/** base64url(SHA-256(owner)) — the wallet address. */
+/** base64url(SHA-256(owner)), the wallet address. */
 export declare function addressFromOwner(owner: Buffer | Uint8Array): string;
 
 /** Rebuild the public key from owner bytes, assuming e = 65537. */
 export declare function publicKeyFromOwner(owner: Buffer | Uint8Array): KeyObject;
 
-/** 4096 — cap on the SERIALIZED tag region in bytes, not the tag count. */
+/** 4096, cap on the SERIALIZED tag region in bytes, not the tag count. */
 export declare const MAX_TAG_BYTES: number;
-/** 1044 — the smallest possible signed item. */
+/** 1044, the smallest possible signed item. */
 export declare const MIN_ITEM_SIZE: number;
-/** 478 — the PSS salt length this package emits. See the README. */
+/** 478, the PSS salt length this package emits. See the README. */
 export declare const PSS_SALT_LENGTH_BYTES: number;
 /** 1 */
 export declare const SIGNATURE_TYPE_ARWEAVE: number;
@@ -357,7 +363,6 @@ export declare class TurboHTTPError extends TurboError {
   /** Parsed JSON when the response was JSON, otherwise raw text. */
   readonly body: unknown;
 }
-/** The service returned an id we did not produce. */
 /**
  * The service refused the upload because the wallet cannot pay: HTTP 402.
  *
@@ -367,6 +372,13 @@ export declare class TurboHTTPError extends TurboError {
  */
 export declare class TurboPaymentError extends TurboHTTPError {}
 
+/**
+ * The service returned an id we did not produce.
+ *
+ * Either the service mutated the item, or this is not a Turbo upload service.
+ * Never ignore it: the id is what proves the bytes that arrived are the bytes
+ * that were signed.
+ */
 export declare class TurboVerificationError extends TurboError {
   constructor(init: { expectedId: string; receivedId: string });
   readonly expectedId?: string;
