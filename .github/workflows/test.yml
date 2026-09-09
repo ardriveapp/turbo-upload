@@ -26,6 +26,37 @@ jobs:
       # true and `zero-deps.test.js` will say so first.
       - run: npm test
 
+  examples:
+    runs-on: ubuntu-latest
+    name: the examples actually run
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # These ship in the tarball, so a broken one is a broken package. They
+      # were broken once already: the constructor started rejecting unknown
+      # options, and both examples spread an endpoint record that carries two
+      # keys which are not options. Nothing noticed, because nothing ran them.
+      #
+      # They upload to testnet for real, which costs nothing and is the point:
+      # a sample that has never run is not a sample.
+      - name: run every example against testnet
+        run: |
+          npm link
+          npm link @ardrive/turbo-upload
+          export ARWEAVE_JWK=$(node -e "
+            const { generateKeyPairSync } = require('node:crypto');
+            process.stdout.write(JSON.stringify(
+              generateKeyPairSync('rsa', { modulusLength: 4096 })
+                .privateKey.export({ format: 'jwk' })
+            ));
+          ")
+          for f in examples/*.js; do
+            echo "--- $f"
+            node "$f" || { echo "::error::$f failed"; exit 1; }
+          done
+
   house-style:
     runs-on: ubuntu-latest
     name: house style

@@ -44,7 +44,7 @@ and a CLI, and that costs a dependency tree:
 | installed on its own | lockfile entries | on disk | `npm audit` |
 |---|---|---|---|
 | `@ardrive/turbo-sdk@1.43.0` | 784 | 895 MB | 58 advisories, 3 critical, 9 high |
-| `@ardrive/turbo-upload@0.2.0` | 1 | 452 KB | none |
+| `@ardrive/turbo-upload@0.2.0` | 1 | 464 KB | none |
 
 Measured 2026-09-09 into an empty project with `npm install` and `npm audit`.
 Re-run it rather than trusting this table: the numbers move as either tree
