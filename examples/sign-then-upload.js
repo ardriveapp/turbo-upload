@@ -6,9 +6,11 @@
 // Use uploadSigned(). Calling upload() after sign() signs a SECOND time, and
 // RSA-PSS draws a fresh random salt per signature, so you get a different id
 // and a second paid item. The id you recorded would not be the one that landed.
-const { TurboUpload, TESTNET } = require("@ardrive/turbo-upload");
+const { TurboUpload } = require("@ardrive/turbo-upload");
 
-const client = new TurboUpload({ jwk: process.env.ARWEAVE_JWK, ...TESTNET });
+// TurboUpload.testnet() rather than spreading TESTNET: that record carries
+// `name` and `gatewayUrl`, which are not constructor options.
+const client = TurboUpload.testnet({ jwk: process.env.ARWEAVE_JWK });
 
 (async () => {
   const item = client.sign({

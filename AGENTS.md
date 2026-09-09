@@ -126,6 +126,7 @@ inspecting items outside the client.
 | `idFromSignature` | `SHA-256(signature)`, which is how an id is derived |
 | `parseJwk`, `ownerFromJwk`, `addressFromOwner`, `publicKeyFromOwner` | key and address handling |
 | `PSS_SALT_LENGTH_BYTES`, `MAX_TAG_BYTES`, `MIN_ITEM_SIZE`, `SIGNATURE_TYPE_ARWEAVE` | protocol constants |
+| `DEFAULT_TIMEOUT_MS`, `DEFAULT_RETRY` | the client's defaults, for reading rather than mutating |
 | `PRODUCTION`, `TESTNET` | endpoint records. Use these rather than typing a hostname |
 
 ## Reading an item back

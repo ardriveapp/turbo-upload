@@ -9,9 +9,12 @@
 // A small upload like this one is free until that allowance is used up.
 const { TurboUpload, TESTNET } = require("@ardrive/turbo-upload");
 
-const client = new TurboUpload({
+// TurboUpload.testnet() rather than spreading TESTNET: the endpoint record
+// also carries `name` and `gatewayUrl`, which are not constructor options and
+// are rejected. Use TurboUpload.production() for the real thing, where uploads
+// are permanent and paid for.
+const client = TurboUpload.testnet({
   jwk: process.env.ARWEAVE_JWK,   // an object or a JSON string
-  ...TESTNET,                     // drop this line to use production
 });
 
 (async () => {
