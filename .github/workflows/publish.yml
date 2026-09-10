@@ -82,8 +82,12 @@ jobs:
       - name: no npm token is configured, so OIDC is the only auth path
         run: |
           echo "npm $(npm --version)"
-          if npm config get //registry.npmjs.org/:_authToken 2>/dev/null | grep -qv '^undefined$'; then
-            echo "::error::An npm auth token is configured. npm will use it instead of OIDC."
+          # An unset key comes back as an empty string, not the string
+          # "undefined", so test for emptiness. Getting this backwards fails
+          # the publish for the opposite reason to the one being guarded.
+          token=$(npm config get //registry.npmjs.org/:_authToken 2>/dev/null || true)
+          if [ -n "$token" ] && [ "$token" != "undefined" ]; then
+            echo "::error::An npm auth token is configured, so npm will use it instead of OIDC."
             exit 1
           fi
           echo "no auth token configured, OIDC will be used"
