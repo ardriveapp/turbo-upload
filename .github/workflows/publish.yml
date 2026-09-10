@@ -40,7 +40,13 @@ jobs:
           # satisfy the second, so it is upgraded explicitly rather than left
           # to whatever the runner image happens to carry this month.
           node-version: "24"
-          registry-url: "https://registry.npmjs.org"
+          # No `registry-url`, deliberately. It writes an .npmrc containing an
+          # `_authToken` line plus a placeholder NODE_AUTH_TOKEN, and npm treats
+          # a configured token as the auth method and never attempts OIDC. The
+          # first tag failed exactly there: every guard passed, the tarball was
+          # built, and the PUT came back 404, which is how the registry reports
+          # a rejected credential without revealing whether a package exists.
+          # With no token configured, npm exchanges the OIDC token instead.
 
       - name: npm new enough for trusted publishing
         run: |
@@ -70,9 +76,18 @@ jobs:
 
       - run: npm test
 
-      # No NODE_AUTH_TOKEN. Authentication is the OIDC token from the
-      # `id-token: write` permission above, exchanged with npm for a short-lived
-      # credential. Provenance is attested as part of that exchange.
+      # Nothing here configures a token. Authentication is the OIDC token from
+      # the `id-token: write` permission above, exchanged with npm for a
+      # short-lived credential. Provenance is attested as part of that exchange.
+      - name: no npm token is configured, so OIDC is the only auth path
+        run: |
+          echo "npm $(npm --version)"
+          if npm config get //registry.npmjs.org/:_authToken 2>/dev/null | grep -qv '^undefined$'; then
+            echo "::error::An npm auth token is configured. npm will use it instead of OIDC."
+            exit 1
+          fi
+          echo "no auth token configured, OIDC will be used"
+
       - run: npm publish
 
       - name: confirm the registry actually has it
