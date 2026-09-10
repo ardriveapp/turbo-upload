@@ -40,13 +40,14 @@ jobs:
           # satisfy the second, so it is upgraded explicitly rather than left
           # to whatever the runner image happens to carry this month.
           node-version: "24"
-          # No `registry-url`, deliberately. It writes an .npmrc containing an
-          # `_authToken` line plus a placeholder NODE_AUTH_TOKEN, and npm treats
-          # a configured token as the auth method and never attempts OIDC. The
-          # first tag failed exactly there: every guard passed, the tarball was
-          # built, and the PUT came back 404, which is how the registry reports
-          # a rejected credential without revealing whether a package exists.
-          # With no token configured, npm exchanges the OIDC token instead.
+          # `registry-url` is required, and this was removed once on a wrong
+          # diagnosis. It writes the .npmrc that points npm at the registry.
+          # Without it npm has nothing to authenticate against and fails
+          # ENEEDAUTH without ever attempting the OIDC exchange.
+          #
+          # What must NOT be set is NODE_AUTH_TOKEN on the publish step. A
+          # configured token is used in preference to OIDC. There is none here.
+          registry-url: "https://registry.npmjs.org"
 
       - name: npm new enough for trusted publishing
         run: |
@@ -79,18 +80,22 @@ jobs:
       # Nothing here configures a token. Authentication is the OIDC token from
       # the `id-token: write` permission above, exchanged with npm for a
       # short-lived credential. Provenance is attested as part of that exchange.
-      - name: no npm token is configured, so OIDC is the only auth path
+      # Reports, never blocks. Two publishes have already failed on wrong
+      # guesses about this, and a check that fails the publish on a value
+      # nobody has observed is a third way to be wrong. When a publish fails,
+      # this is the first thing to read.
+      - name: what npm will try to authenticate with
         run: |
-          echo "npm $(npm --version)"
-          # An unset key comes back as an empty string, not the string
-          # "undefined", so test for emptiness. Getting this backwards fails
-          # the publish for the opposite reason to the one being guarded.
+          echo "npm      $(npm --version)"
+          echo "node     $(node --version)"
+          echo "registry $(npm config get registry)"
+          echo "OIDC available: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}${ACTIONS_ID_TOKEN_REQUEST_URL:-NO, id-token write is missing}"
           token=$(npm config get //registry.npmjs.org/:_authToken 2>/dev/null || true)
-          if [ -n "$token" ] && [ "$token" != "undefined" ]; then
-            echo "::error::An npm auth token is configured, so npm will use it instead of OIDC."
-            exit 1
-          fi
-          echo "no auth token configured, OIDC will be used"
+          case "$token" in
+            ""|undefined) echo "auth token: none, so OIDC is the only path" ;;
+            *NODE_AUTH_TOKEN*) echo "auth token: an unexpanded placeholder, which npm may prefer over OIDC" ;;
+            *) echo "auth token: a value is configured, which npm will prefer over OIDC" ;;
+          esac
 
       - run: npm publish
 
