@@ -54,6 +54,25 @@ When you are adding Arweave storage to *someone else's* server, that tree is
 what a dependency review rejects, and those three criticals are what it asks
 about first. This package does one thing completely, with nothing else in it.
 
+## What it does
+
+- Signs ANS-104 data items with an Arweave JWK (signature type 1, RSA-4096 / RSA-PSS-SHA256)
+- Uploads them to a Turbo upload service (`POST /v1/tx`)
+- Prices uploads, reads your credit balance, reads service info
+- Verifies data items, including a strict mode most implementations do not have
+
+## Use `@ardrive/turbo-sdk` instead if you need
+
+Non-Arweave keys (Ethereum, Solana, KYVE, Polygon) · a browser build or an
+injected wallet · buying credits, promo codes, any payment flow · the CLI,
+folder uploads, or ArDrive drive abstractions · packing your own bundles ·
+streaming very large files.
+
+This package signs one Arweave JWK and uploads bytes. If that is your case, it
+brings nothing with it.
+
+---
+
 ## Coming from `@ardrive/turbo-sdk`
 
 The realistic reader already has turbo-sdk wired into a server and wants one
@@ -85,27 +104,8 @@ What changes beyond the call:
 | errors arrive as `fetch failed` | typed errors that name the endpoint, the status and the method |
 | any supported token | Arweave JWKs only. Anything else throws at construction |
 
-**Keep turbo-sdk** for the things in the next section. Nothing stops both being
+**Keep turbo-sdk** for the cases in § Use `@ardrive/turbo-sdk` instead if you need. Nothing stops both being
 installed; they share no state.
-
-## What it does
-
-- Signs ANS-104 data items with an Arweave JWK (signature type 1, RSA-4096 / RSA-PSS-SHA256)
-- Uploads them to a Turbo upload service (`POST /v1/tx`)
-- Prices uploads, reads your credit balance, reads service info
-- Verifies data items, including a strict mode most implementations do not have
-
-## Use `@ardrive/turbo-sdk` instead if you need
-
-Non-Arweave keys (Ethereum, Solana, KYVE, Polygon) · a browser build or an
-injected wallet · buying credits, promo codes, any payment flow · the CLI,
-folder uploads, or ArDrive drive abstractions · packing your own bundles ·
-streaming very large files.
-
-This package signs one Arweave JWK and uploads bytes. If that is your case, the
-dependency count is 0 instead of 344.
-
----
 
 ## API
 
@@ -116,7 +116,7 @@ dependency count is 0 instead of 344.
 | `jwk` | *required* | Arweave JWK, **an object or a JSON string** |
 | `uploadUrl` | `https://upload.ardrive.io` | |
 | `paymentUrl` | `https://payment.ardrive.io` | |
-| `timeoutMs` | `60000` | **per request, not per call**, see below |
+| `timeoutMs` | `60000` | **per request, not per call**. See § Bounding a call |
 | `retry` | `{retries:3, minDelayMs:500, maxDelayMs:8000, retryStatuses:[408,429,500,502,503,504]}` | **partial**: override one field, keep the rest |
 | `token` | `"arweave"` | anything else throws immediately |
 | `fetch` | global `fetch` | injectable for tests and proxies |
@@ -145,12 +145,12 @@ the return value.
 ```js
 const { TurboUpload, TESTNET } = require("@ardrive/turbo-upload");
 
-const client = new TurboUpload({ jwk, ...TESTNET, timeoutMs: 30_000, retry: { retries: 5 } });
-// or
-const client = TurboUpload.testnet({ jwk });
+// TESTNET carries `name` and `gatewayUrl` as well as the two URLs, and those
+// are not constructor options, so spreading the whole record is rejected.
+const client = TurboUpload.testnet({ jwk, timeoutMs: 30_000, retry: { retries: 5 } });
 ```
 
-#### `timeoutMs` is per request. Bound the whole call yourself.
+#### Bounding a call
 
 `timeoutMs` applies to each HTTP attempt, and `retry` runs up to `retries` more
 of them. **They multiply.** With the defaults, one `upload()` can take:
@@ -208,15 +208,15 @@ is a zero balance, not an error, and is normalised to zeros.
 
 ### `await client.getInfo()` / `await client.getFreeUploadLimitBytes()`
 
-Service info, including the free-upload threshold, **107,520 bytes** at the time
-of writing. It is read live from `/v1/info` rather than hardcoded here, because
-it is service policy and will change. Items at or below it upload with no credit
+Service info, including the free-upload threshold, **107,520 bytes** when this
+was written. Read it from `/v1/info` rather than from this page: it is service
+policy and it changes. Items at or below it upload with no credit
 balance at all.
 
 ### `client.verify(binary, { strictSaltLength? })` → `boolean`
 
-Structural and cryptographic verification. See the salt-length note below for
-what `strictSaltLength` catches.
+Structural and cryptographic verification. § The PSS salt length, and why it is
+478 explains what `strictSaltLength` catches.
 
 ### Low-level exports
 
@@ -226,7 +226,8 @@ what `strictSaltLength` catches.
 `ownerFromJwk` · `addressFromOwner` · `publicKeyFromOwner`
 
 Constants: `MAX_TAG_BYTES` (4096) · `MIN_ITEM_SIZE` (1044) ·
-`PSS_SALT_LENGTH_BYTES` (478) · `PRODUCTION` · `TESTNET` · `DEFAULT_TIMEOUT_MS`.
+`PSS_SALT_LENGTH_BYTES` (478) · `SIGNATURE_TYPE_ARWEAVE` (1) · `PRODUCTION` ·
+`TESTNET` · `DEFAULT_TIMEOUT_MS` · `DEFAULT_RETRY`.
 
 ### Types
 
@@ -252,6 +253,7 @@ Every error extends `TurboError` and carries its context.
 | `TurboNetworkError` | no response at all (DNS, TLS, reset) | `endpoint`, `method`, `cause` |
 | `TurboTimeoutError` | exceeded `timeoutMs`, or caller aborted | `endpoint`, `timeoutMs`, `cause` |
 | `TurboHTTPError` | non-2xx | `status`, `endpoint`, `method`, `body` |
+| `TurboPaymentError` | `402`, the wallet cannot pay. A `TurboHTTPError`, so existing catches still work | `status`, `endpoint`, `method`, `body` |
 | `TurboVerificationError` | the service returned an id we did not sign | `expectedId`, `receivedId` |
 
 ```
@@ -324,102 +326,41 @@ Uploads to `PRODUCTION` are permanent and cost real money.
 
 ---
 
-## The PSS salt length, and why it is 478
+## The PSS salt length
 
-This is the single most important correctness detail in the package, and the one
-most likely to be "fixed" into a bug.
+ANS-104 says RSA-PSS and stops. This package sets the salt length to **478
+bytes** explicitly rather than inheriting a default, because that is what the
+reference implementation produces and **getting it wrong does not fail loudly**:
+verification is salt-agnostic, so a 32-byte-salt signature passes round-trip
+tests, passes cross-verification, and is accepted by the live service. It would
+fail later, at a stricter verifier.
 
-ANS-104 says RSA-PSS and stops. The reference implementation (arbundles) signs
-through Node without setting `saltLength`, and **Node's default for signing is
-`RSA_PSS_SALTLEN_MAX_SIGN`**, the maximum the modulus allows:
+What that means for you: nothing, unless you sign items yourself elsewhere. If
+you do, pass `{ strictSaltLength: true }` to `client.verify()` to catch it.
 
-```
-emBits = 4096 - 1 = 4095
-emLen  = ceil(4095/8) = 512
-sLen   = emLen - hLen - 2 = 512 - 32 - 2 = 478 bytes
-```
-
-Almost every other crypto library defaults PSS to the **digest length, 32**.
-
-The trap is that **getting this wrong does not fail loudly.** Verification is
-salt-agnostic: arbundles verifies through arweave.js, which also passes no
-`saltLength`, and Node's default for *verifying* is `RSA_PSS_SALTLEN_AUTO`, which
-recovers the length from the encoded message and accepts **any** value. (Both
-constants are literally `-2`, which is how one omitted parameter means "maximum"
-when signing and "anything" when verifying.)
-
-So a 32-byte-salt signature passes round-trip tests, passes cross-verification
-against the reference, and **is accepted by the live service today**. It would
-only fail later, at a stricter verifier.
-
-This package therefore sets 478 **explicitly** rather than inheriting a default,
-and the test suite **recovers the salt length off the wire**, computing
-`sig^e mod n`, unmasking the DB with MGF1 and counting the bytes, instead of
-trusting the flag. `client.verify(item, { strictSaltLength: true })` applies the
-same strictness when verifying.
-
----
-
-## Releasing
-
-Publishing is tag-driven, so it is a deliberate act with a reviewable trigger
-rather than a side effect of merging:
-
-```bash
-# after the version bump has merged to main
-git tag v0.2.0 && git push origin v0.2.0
-```
-
-The workflow refuses a tag that disagrees with `package.json`, refuses a
-version already on the registry, runs the tests, publishes with npm provenance,
-and then confirms the registry actually serves it.
-
-**There is no publish token and no repository secret.** npm verifies a
-short-lived OIDC token that GitHub mints for this workflow in this repository.
-A maintainer configures it once, on the package page under Settings, Trusted
-Publisher, naming the organization `ardriveapp`, the repository
-`turbo-upload`, and the workflow `publish.yml`.
+The derivation, the empirical recovery of the salt off the wire, and the
+per-library instructions are in [the conformance spec](https://github.com/ardriveapp/turbo-upload/blob/main/conformance/spec.md).
 
 ## Conformance
 
-The package ships **22 conformance vectors** in `vectors/vectors.json`, generated
-from `@dha-team/arbundles@1.0.4`, the de-facto reference that the gateways and
-bundlers actually run, and the test suite ships with it, so you can re-prove all
-of this from your own `node_modules`:
+The package ships **22 conformance vectors** in `vectors/vectors.json`,
+generated from `@dha-team/arbundles@1.0.4`, the de-facto reference that the
+gateways and bundlers actually run. The test suite ships too, so you can
+re-prove all of it from your own `node_modules`:
 
 ```bash
 npm test --prefix node_modules/@ardrive/turbo-upload
 ```
 
-The vectors pin the exact unsigned item bytes, the deep-hash transcript chunk by
-chunk, every field offset, the serialized tag region and a reference-produced
-signature per vector that must verify here. They cover the degenerate 1044-byte
-item, target/anchor presence combinations, unicode and empty and duplicate tags,
-the 64/65-byte encoder threshold, the 64-tag varint boundary, and the maximum tag
-set.
+The vectors pin the unsigned item bytes, the deep-hash transcript, every field
+offset, the serialized tag region and a reference-produced signature per vector.
+No private key ships: the corpus carries only the public modulus, and the
+signing tests generate an ephemeral key at runtime.
 
-No private key ships with this package: the corpus carries only the public
-modulus, and the signing tests generate an ephemeral key at runtime.
-
-Some things worth knowing if you reimplement this format:
-
-- **`target` is base64url-decoded; `anchor` is taken as raw bytes.** Two adjacent
-  32-byte fields, opposite string conventions. A 43-character base64url anchor
-  throws.
-- **An empty tag list serializes to zero bytes**, not to a `0x00` terminator.
-- **`MAX_TAG_BYTES` (4096) is a cap on the serialized byte length**, not the tag
-  count, and applies on read as well as write.
-- **Absent target/anchor are zero-length elements in the deep hash**, not omitted
-  ones. The list is always 8 long.
-- **Three hash functions in one operation**: SHA-384 for the transcript, SHA-256
-  for the signature digest, SHA-256 for the id.
-- **`id = SHA-256(signature)`**, so ids are randomised and not reproducible from
-  the inputs.
-- Tag strings go through arbundles' hand-rolled UTF-8 encoder below 64 bytes,
-  which writes unpaired UTF-16 surrogates as WTF-8. Reproduced here bug-for-bug,
-  because the alternative is a different id for the same input.
-
----
+Reimplementing the format rather than consuming it? [The conformance
+spec](https://github.com/ardriveapp/turbo-upload/blob/main/conformance/spec.md) has the byte-level rules, including the two adjacent 32-byte
+fields with opposite string conventions and the encoder quirks reproduced
+bug-for-bug.
 
 ## Requirements
 
