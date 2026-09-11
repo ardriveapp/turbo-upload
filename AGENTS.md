@@ -108,7 +108,7 @@ archival is the worst available failure mode.
 ## Read it back
 
 ```js
-const { PRODUCTION } = require("@ardrive/turbo-upload");
+import { PRODUCTION } from "@ardrive/turbo-upload";
 const res = await fetch(`${PRODUCTION.gatewayUrl}/${id}`, { redirect: "follow" });
 ```
 

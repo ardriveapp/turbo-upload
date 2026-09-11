@@ -57,6 +57,20 @@ jobs:
             node "$f" || { echo "::error::$f failed"; exit 1; }
           done
 
+  samples:
+    runs-on: ubuntu-latest
+    name: documented samples run as written
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # Two shipped samples used require() with a top-level await, which cannot
+      # run: Node retries the file as ESM and require is undefined. Reading them
+      # did not reveal it, and running them inside a harness passed while the
+      # samples themselves did not.
+      - run: node scripts/check-samples.mjs
+
   house-style:
     runs-on: ubuntu-latest
     name: house style

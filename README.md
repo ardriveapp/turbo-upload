@@ -15,7 +15,7 @@ npm install @ardrive/turbo-upload
 Runnable examples: [`examples/`](examples/).
 
 ```js
-const { TurboUpload, TESTNET } = require("@ardrive/turbo-upload");
+import { TurboUpload, TESTNET } from "@ardrive/turbo-upload";
 
 // Testnet, so this costs nothing and nothing it writes is permanent.
 // Drop `uploadUrl` and `paymentUrl` to talk to production, where uploads are
@@ -89,7 +89,7 @@ const { id } = await turbo.uploadFile({
 });
 
 // after
-const { TurboUpload } = require("@ardrive/turbo-upload");
+import { TurboUpload } from "@ardrive/turbo-upload";
 const client = new TurboUpload({ jwk });
 const { id } = await client.upload({ data: buffer, tags });
 ```
