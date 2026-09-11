@@ -44,9 +44,9 @@ and a CLI, and that costs a dependency tree:
 | installed on its own | lockfile entries | on disk | `npm audit` |
 |---|---|---|---|
 | `@ardrive/turbo-sdk@1.43.0` | 784 | 895 MB | 58 advisories, 3 critical, 9 high |
-| `@ardrive/turbo-upload@0.2.0` | 1 | 464 KB | none |
+| `@ardrive/turbo-upload@0.3.0` | 1 | 488 KB | none |
 
-Measured 2026-09-09 into an empty project with `npm install` and `npm audit`.
+Measured 2026-09-11 into an empty project with `npm install` and `npm audit`.
 Re-run it rather than trusting this table: the numbers move as either tree
 changes, and the point is the shape, not the digits.
 
@@ -63,7 +63,7 @@ about first. This package does one thing completely, with nothing else in it.
 
 ## Use `@ardrive/turbo-sdk` instead if you need
 
-Non-Arweave keys (Ethereum, Solana, KYVE, Polygon) · a browser build or an
+Ethereum, KYVE or Polygon keys · a browser build or an
 injected wallet · buying credits, promo codes, any payment flow · the CLI,
 folder uploads, or ArDrive drive abstractions · packing your own bundles ·
 streaming very large files.
@@ -72,6 +72,20 @@ This package signs one Arweave JWK and uploads bytes. If that is your case, it
 brings nothing with it.
 
 ---
+
+## Solana keys
+
+```js
+import { TurboUpload } from "@ardrive/turbo-upload";
+
+const client = TurboUpload.production({ jwk: process.env.SOLANA_SECRET_KEY, token: "solana" });
+```
+
+Takes any form a Solana user actually holds: a base58 secret key as Phantom exports it, the JSON array `solana-keygen` writes, raw 64 bytes, or a bare 32-byte seed. `client.address` is the base58 Solana address.
+
+A 64-byte key carries its own public key, and that half is checked rather than trusted. A key whose halves disagree is refused at construction, because signing with one produces items that verify nowhere and you find out after paying.
+
+This is **ANS-104 signature type 4**, the same type `@ardrive/turbo-sdk` uses for `token: "solana"`, so the two produce identical ids for identical content. Type 4 signs the hex encoding of the signature data rather than the bytes; the library does that for you, and a test asserts it, because signing the raw bytes yields a valid signature over the wrong message.
 
 ## Coming from `@ardrive/turbo-sdk`
 
@@ -102,7 +116,7 @@ What changes beyond the call:
 | stream factories | a `Buffer`, `Uint8Array` or string. There is no streaming |
 | `getBalance()` returns a signed-in account | `getBalance()` returns zeros for an unknown wallet, because the service answers `404` |
 | errors arrive as `fetch failed` | typed errors that name the endpoint, the status and the method |
-| any supported token | Arweave JWKs only. Anything else throws at construction |
+| any supported token | Arweave JWKs and Solana keys. Anything else throws at construction |
 
 **Keep turbo-sdk** for the cases in § Use `@ardrive/turbo-sdk` instead if you need. Nothing stops both being
 installed; they share no state.
@@ -118,7 +132,7 @@ installed; they share no state.
 | `paymentUrl` | `https://payment.ardrive.io` | |
 | `timeoutMs` | `60000` | **per request, not per call**. See § Bounding a call |
 | `retry` | `{retries:3, minDelayMs:500, maxDelayMs:8000, retryStatuses:[408,429,500,502,503,504]}` | **partial**: override one field, keep the rest |
-| `token` | `"arweave"` | anything else throws immediately |
+| `token` | `"arweave"` | or `"solana"`. Anything else throws immediately |
 | `fetch` | global `fetch` | injectable for tests and proxies |
 
 Everything is validated **in the constructor**, so a bad key is a startup error

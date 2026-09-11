@@ -11,6 +11,8 @@
 const { Buffer } = require("node:buffer");
 const ans104 = require("./ans104.js");
 const { loadJwk } = require("./jwk.js");
+const { parseSolanaKey } = require("./ed25519.js");
+const { SIG_TYPE_SOLANA } = require("./ans104.js");
 const { request, resolveRetryConfig, DEFAULT_TIMEOUT_MS } = require("./http.js");
 const { PRODUCTION, TESTNET } = require("./endpoints.js");
 const { TurboConfigError, TurboValidationError, TurboVerificationError } = require("./errors.js");
@@ -92,6 +94,21 @@ class TurboUpload {
 
     // Validate everything NOW. A bad key or a typo'd option is a startup
     // failure, not a mystery at the first upload.
+    // A Solana key is a seed, not a JWK, so it takes a different loader and a
+    // different signature type. Everything downstream reads widths from
+    // SIG_CONFIG, so only these three fields differ.
+    if (token === "solana") {
+      const solana = parseSolanaKey(jwk);
+      this.jwk = null;
+      this.seed = solana.seed;
+      this.owner = solana.publicKey;
+      this.address = solana.address;
+      this.signatureType = SIG_TYPE_SOLANA;
+      this.privateKey = null;
+      this.#finishConstruction({ timeoutMs, retry, uploadUrl, paymentUrl, token, fetchImpl });
+      return;
+    }
+
     const loaded = loadJwk(jwk, { token });
     this.jwk = loaded.jwk;
     this.owner = loaded.owner;
@@ -99,6 +116,16 @@ class TurboUpload {
     this.address = loaded.address;
     this.privateKey = loaded.privateKey;
 
+    if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+      throw new TurboConfigError(`\`timeoutMs\` must be a positive number, got ${JSON.stringify(timeoutMs)}.`);
+    }
+    this.signatureType = this.signatureType ?? 1;
+    this.seed = null;
+    this.#finishConstruction({ timeoutMs, retry, uploadUrl, paymentUrl, token, fetchImpl });
+  }
+
+  /** Shared tail of the constructor, so the two key paths cannot drift. */
+  #finishConstruction({ timeoutMs, retry, uploadUrl, paymentUrl, token, fetchImpl }) {
     if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
       throw new TurboConfigError(`\`timeoutMs\` must be a positive number, got ${JSON.stringify(timeoutMs)}.`);
     }
@@ -167,6 +194,8 @@ class TurboUpload {
       anchor,
       owner: this.owner,
       privateKey: this.privateKey,
+      signatureType: this.signatureType,
+      seed: this.seed,
     });
   }
 

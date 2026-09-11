@@ -15,7 +15,7 @@ const { privateKeyFromJwk, ownerFromJwk, addressFromOwner } = require("./ans104.
 const { TurboKeyError, TurboConfigError } = require("./errors.js");
 
 /** The only token this package signs for. */
-const SUPPORTED_TOKENS = ["arweave"];
+const SUPPORTED_TOKENS = ["arweave", "solana"];
 
 /** Fields an Arweave JWK must carry to be usable for signing. */
 const REQUIRED_PRIVATE_FIELDS = ["n", "e", "d", "p", "q", "dp", "dq", "qi"];
@@ -64,8 +64,8 @@ function parseJwk(input) {
 function loadJwk(input, { token = "arweave" } = {}) {
   if (!SUPPORTED_TOKENS.includes(token)) {
     throw new TurboConfigError(
-      `Unsupported token "${token}". This package signs Arweave JWKs only (token: "arweave"). ` +
-        `For Ethereum, Solana, KYVE or other chains use @ardrive/turbo-sdk.`,
+      `Unsupported token "${token}". This package signs Arweave JWKs ("arweave") and Solana keys ("solana"). ` +
+        `For Ethereum, KYVE, Polygon or other chains use @ardrive/turbo-sdk.`,
     );
   }
 

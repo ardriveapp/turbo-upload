@@ -1,9 +1,11 @@
 {
   "name": "@ardrive/turbo-upload",
-  "version": "0.2.1",
-  "description": "Zero-dependency ANS-104 data-item signing and Turbo upload for Arweave JWKs. Server-side Node, no wallet connectors, no CLI.",
+  "version": "0.3.0",
+  "description": "Zero-dependency ANS-104 data-item signing and Turbo upload, for Arweave JWKs and Solana keys. Server-side Node, no wallet connectors, no CLI.",
   "keywords": [
     "arweave",
+    "ed25519",
+    "solana",
     "ans-104",
     "ans104",
     "turbo",

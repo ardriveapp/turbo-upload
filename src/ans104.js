@@ -28,8 +28,15 @@ const { TurboValidationError } = require("./errors.js");
 /** ANS-104 §2.2 signature registry. Only type 1 (Arweave RSA) is implemented. */
 const SIG_CONFIG = {
   1: { name: "arweave", sigLength: 512, ownerLength: 512, modulusBits: 4096 },
+  // Type 4 signs the HEX STRING of the signature data, not the bytes. See
+  // src/ed25519.js. Type 2 is the same widths without the hex step and is
+  // deliberately not implemented: @ardrive/turbo-sdk emits type 4 for
+  // token "solana", and two of our own libraries producing different ids for
+  // the same key and content would be worse than supporting one fewer type.
+  4: { name: "solana", sigLength: 64, ownerLength: 32 },
 };
 const SIG_TYPE_ARWEAVE = 1;
+const SIG_TYPE_SOLANA = 4;
 
 /** Cap on the serialized tag region, on BYTES, not tag count. Enforced on read and write. */
 const MAX_TAG_BYTES = 4096;
@@ -536,7 +543,12 @@ const idFromSignature = (sig) => sha256(sig);
 function signDataItem(jwk, opts = {}) {
   const binary = createDataItem({ ...opts, owner: opts.owner ?? ownerFromJwk(jwk) });
   const signatureData = getSignatureData(binary);
-  const signature = signMessage(jwk, signatureData, opts);
+  // A Solana key arrives as a seed rather than a JWK, and signs the hex of the
+  // signature data. ed25519.js owns that step so no caller can skip it.
+  const signature =
+    opts.signatureType === SIG_TYPE_SOLANA
+      ? require("./ed25519.js").signEd25519(opts.seed, signatureData)
+      : signMessage(jwk, signatureData, opts);
   binary.set(signature, 2);
   const id = idFromSignature(signature);
   return { binary, signature, id, idB64Url: id.toString("base64url"), signatureData };
@@ -571,7 +583,14 @@ function verifyDataItem(binary, opts = {}) {
     }
   }
   try {
-    return verifyMessage(it.rawOwner, getSignatureData(binary), it.rawSignature, opts);
+    const signatureData = getSignatureData(binary);
+    if (it.signatureType === SIG_TYPE_SOLANA) {
+      // Lazily required: ed25519.js imports errors.js, and importing it at the
+      // top of this file would close a cycle.
+      const { verifyEd25519 } = require("./ed25519.js");
+      return verifyEd25519(Buffer.from(it.rawOwner), signatureData, Buffer.from(it.rawSignature));
+    }
+    return verifyMessage(it.rawOwner, signatureData, it.rawSignature, opts);
   } catch {
     return false;
   }
@@ -580,6 +599,7 @@ function verifyDataItem(binary, opts = {}) {
 module.exports = {
   SIG_CONFIG,
   SIG_TYPE_ARWEAVE,
+  SIG_TYPE_SOLANA,
   MAX_TAG_BYTES,
   MIN_BINARY_SIZE,
   MIN_ITEM_SIZE,
