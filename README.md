@@ -63,7 +63,7 @@ about first. This package does one thing completely, with nothing else in it.
 
 ## Use `@ardrive/turbo-sdk` instead if you need
 
-Non-Arweave keys (Ethereum, Solana, KYVE, Polygon) · a browser build or an
+Ethereum, KYVE or Polygon keys · a browser build or an
 injected wallet · buying credits, promo codes, any payment flow · the CLI,
 folder uploads, or ArDrive drive abstractions · packing your own bundles ·
 streaming very large files.
@@ -72,6 +72,20 @@ This package signs one Arweave JWK and uploads bytes. If that is your case, it
 brings nothing with it.
 
 ---
+
+## Solana keys
+
+```js
+import { TurboUpload } from "@ardrive/turbo-upload";
+
+const client = TurboUpload.production({ jwk: process.env.SOLANA_SECRET_KEY, token: "solana" });
+```
+
+Takes any form a Solana user actually holds: a base58 secret key as Phantom exports it, the JSON array `solana-keygen` writes, raw 64 bytes, or a bare 32-byte seed. `client.address` is the base58 Solana address.
+
+A 64-byte key carries its own public key, and that half is checked rather than trusted. A key whose halves disagree is refused at construction, because signing with one produces items that verify nowhere and you find out after paying.
+
+This is **ANS-104 signature type 4**, the same type `@ardrive/turbo-sdk` uses for `token: "solana"`, so the two produce identical ids for identical content. Type 4 signs the hex encoding of the signature data rather than the bytes; the library does that for you, and a test asserts it, because signing the raw bytes yields a valid signature over the wrong message.
 
 ## Coming from `@ardrive/turbo-sdk`
 
@@ -118,7 +132,7 @@ installed; they share no state.
 | `paymentUrl` | `https://payment.ardrive.io` | |
 | `timeoutMs` | `60000` | **per request, not per call**. See § Bounding a call |
 | `retry` | `{retries:3, minDelayMs:500, maxDelayMs:8000, retryStatuses:[408,429,500,502,503,504]}` | **partial**: override one field, keep the rest |
-| `token` | `"arweave"` | anything else throws immediately |
+| `token` | `"arweave"` | or `"solana"`. Anything else throws immediately |
 | `fetch` | global `fetch` | injectable for tests and proxies |
 
 Everything is validated **in the constructor**, so a bad key is a startup error

@@ -15,7 +15,7 @@ const { privateKeyFromJwk, ownerFromJwk, addressFromOwner } = require("./ans104.
 const { TurboKeyError, TurboConfigError } = require("./errors.js");
 
 /** The only token this package signs for. */
-const SUPPORTED_TOKENS = ["arweave"];
+const SUPPORTED_TOKENS = ["arweave", "solana"];
 
 /** Fields an Arweave JWK must carry to be usable for signing. */
 const REQUIRED_PRIVATE_FIELDS = ["n", "e", "d", "p", "q", "dp", "dq", "qi"];

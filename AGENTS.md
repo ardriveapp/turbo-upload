@@ -9,8 +9,10 @@ reference.
 Signs ANS-104 data items with an **Arweave RSA-4096 JWK** and uploads them to
 Turbo. **Node only. Zero dependencies. Upload only.**
 
-**Stop and use `@ardrive/turbo-sdk`** if the task needs a non-Arweave key
-(Ethereum, Solana, KYVE, Polygon), a browser or injected wallet, buying credits
+**Solana keys work**: `TurboUpload.production({ jwk: secretKey, token: "solana" })`, taking a base58 secret key, a `solana-keygen` JSON array, raw 64 bytes or a 32-byte seed. That is ANS-104 type 4, matching what `turbo-sdk` emits, so ids agree between the two.
+
+**Stop and use `@ardrive/turbo-sdk`** if the task needs a key that is not Arweave or Solana
+(Ethereum, KYVE, Polygon), a browser or injected wallet, buying credits
 or any payment flow, folder or ArDrive abstractions, packing your own bundles,
 or streaming a file too large to hold in memory.
 

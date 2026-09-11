@@ -121,9 +121,23 @@ test("the endpoint records carry fields the constructor does not accept", () => 
 });
 
 test("an unsupported token is refused up front and says where to go instead", () => {
+  // solana used to be in this list and is now implemented, so the assertion
+  // moved to a token that is still unsupported rather than being deleted.
+  for (const token of ["ethereum", "matic", "kyve"]) {
+    assert.throws(
+      () => new TurboUpload({ jwk: JWK, token }),
+      (e) => e instanceof TurboConfigError && /@ardrive\/turbo-sdk/.test(e.message),
+      `token ${token} should be refused`,
+    );
+  }
+});
+
+test("an Arweave JWK handed to the solana path fails as a key problem", () => {
+  // The two key formats are unrelated, so the useful error names the key rather
+  // than surfacing something from deep inside node:crypto.
   assert.throws(
     () => new TurboUpload({ jwk: JWK, token: "solana" }),
-    (e) => e instanceof TurboConfigError && /@ardrive\/turbo-sdk/.test(e.message),
+    (e) => e instanceof TurboKeyError,
   );
 });
 
