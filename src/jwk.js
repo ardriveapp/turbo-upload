@@ -64,8 +64,8 @@ function parseJwk(input) {
 function loadJwk(input, { token = "arweave" } = {}) {
   if (!SUPPORTED_TOKENS.includes(token)) {
     throw new TurboConfigError(
-      `Unsupported token "${token}". This package signs Arweave JWKs only (token: "arweave"). ` +
-        `For Ethereum, Solana, KYVE or other chains use @ardrive/turbo-sdk.`,
+      `Unsupported token "${token}". This package signs Arweave JWKs ("arweave") and Solana keys ("solana"). ` +
+        `For Ethereum, KYVE, Polygon or other chains use @ardrive/turbo-sdk.`,
     );
   }
 

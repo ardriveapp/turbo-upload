@@ -36,6 +36,15 @@ export interface ArweaveJWK {
 /** A JWK object, or the JSON string form that comes out of an environment variable. */
 export type JWKInput = ArweaveJWK | string;
 
+/**
+ * A Solana secret key in any form a user actually holds: a base58 secret key,
+ * the JSON array `solana-keygen` writes, raw bytes, or a bare 32-byte seed.
+ */
+export type SolanaKeyInput = string | Buffer | Uint8Array | number[];
+
+/** Tokens this package can sign for. Anything else throws in the constructor. */
+export type TurboToken = "arweave" | "solana";
+
 export interface RetryConfig {
   /** Attempts AFTER the first try. 0 disables retrying. Default 3. */
   retries: number;
@@ -48,8 +57,11 @@ export interface RetryConfig {
 }
 
 export interface TurboUploadOptions {
-  /** Arweave JWK, as an object or a JSON string. Validated in the constructor. */
-  jwk: JWKInput;
+  /**
+   * The signing key. An Arweave JWK by default, or a Solana secret key when
+   * `token` is `"solana"`. Validated in the constructor either way.
+   */
+  jwk: JWKInput | SolanaKeyInput;
   /** Upload service base URL. Default https://upload.ardrive.io */
   uploadUrl?: string;
   /** Payment service base URL. Default https://payment.ardrive.io */
@@ -58,8 +70,14 @@ export interface TurboUploadOptions {
   timeoutMs?: number;
   /** Partial retry config, merged over the defaults. `false` disables retrying. */
   retry?: Partial<RetryConfig> | false;
-  /** Must be "arweave". Anything else throws a TurboConfigError up front. */
-  token?: "arweave";
+  /**
+   * Which key `jwk` holds. Default "arweave".
+   *
+   * "solana" signs ANS-104 type 4, matching what `@ardrive/turbo-sdk` emits for
+   * the same token, so ids agree between the two. Any other value throws a
+   * TurboConfigError up front.
+   */
+  token?: TurboToken;
   /** Inject a fetch implementation (tests, proxies). Defaults to global fetch. */
   fetch?: typeof fetch;
 }
@@ -309,6 +327,7 @@ export declare const MIN_ITEM_SIZE: number;
 export declare const PSS_SALT_LENGTH_BYTES: number;
 /** 1 */
 export declare const SIGNATURE_TYPE_ARWEAVE: number;
+export declare const SIGNATURE_TYPE_SOLANA: number;
 export declare const DEFAULT_TIMEOUT_MS: number;
 export declare const DEFAULT_RETRY: RetryConfig;
 

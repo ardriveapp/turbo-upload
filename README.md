@@ -116,7 +116,7 @@ What changes beyond the call:
 | stream factories | a `Buffer`, `Uint8Array` or string. There is no streaming |
 | `getBalance()` returns a signed-in account | `getBalance()` returns zeros for an unknown wallet, because the service answers `404` |
 | errors arrive as `fetch failed` | typed errors that name the endpoint, the status and the method |
-| any supported token | Arweave JWKs only. Anything else throws at construction |
+| any supported token | Arweave JWKs and Solana keys. Anything else throws at construction |
 
 **Keep turbo-sdk** for the cases in § Use `@ardrive/turbo-sdk` instead if you need. Nothing stops both being
 installed; they share no state.
