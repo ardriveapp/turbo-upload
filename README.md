@@ -41,18 +41,19 @@ const { id, winc } = await client.upload({
 for most things. It carries multi-chain signing, wallet connectors, payments
 and a CLI, and that costs a dependency tree:
 
-| installed on its own | lockfile entries | on disk | `npm audit` |
-|---|---|---|---|
-| `@ardrive/turbo-sdk@1.43.0` | 784 | 895 MB | 58 advisories, 3 critical, 9 high |
-| `@ardrive/turbo-upload@0.3.0` | 1 | 488 KB | none |
+| installed on its own | lockfile entries | on disk |
+|---|---|---|
+| `@ardrive/turbo-sdk@1.43.0` | 784 | 895 MB |
+| `@ardrive/turbo-upload@0.3.0` | 1 | 488 KB |
 
-Measured 2026-09-11 into an empty project with `npm install` and `npm audit`.
-Re-run it rather than trusting this table: the numbers move as either tree
-changes, and the point is the shape, not the digits.
+Measured 2026-09-11 into an empty project with `npm install`. Re-run it rather
+than trusting this table: the numbers move as either tree changes, and the
+point is the shape, not the digits.
 
-When you are adding Arweave storage to *someone else's* server, that tree is
-what a dependency review rejects, and those three criticals are what it asks
-about first. This package does one thing completely, with nothing else in it.
+When you are adding Arweave storage to *someone else's* server, the size of
+that tree is what a dependency review weighs, and every package in it is a
+package somebody has to vouch for. This one does one thing completely, with
+nothing else in it.
 
 ## What it does
 
