@@ -143,10 +143,10 @@ an item with no tags, which no tag query will find again. Neither shows up in
 the return value.
 
 ```js
-const { TurboUpload, TESTNET } = require("@ardrive/turbo-upload");
+const { TurboUpload } = require("@ardrive/turbo-upload");
 
-// TESTNET carries `name` and `gatewayUrl` as well as the two URLs, and those
-// are not constructor options, so spreading the whole record is rejected.
+// Use the helpers rather than spreading TESTNET or PRODUCTION: those records
+// also carry `name` and `gatewayUrl`, which are not constructor options.
 const client = TurboUpload.testnet({ jwk, timeoutMs: 30_000, retry: { retries: 5 } });
 ```
 
@@ -298,7 +298,7 @@ you can build one directly to test your own handling:
 
 ```js
 const { TurboPaymentError } = require("@ardrive/turbo-upload");
-throw new TurboPaymentError({ status: 402, endpoint: "…", method: "POST" });
+throw new TurboPaymentError({ status: 402, endpoint: UPLOAD_URL, method: "POST" });
 ```
 
 ## Endpoints
