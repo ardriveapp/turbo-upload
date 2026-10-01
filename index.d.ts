@@ -1,6 +1,7 @@
 /**
- * @ardrive/turbo-upload, sign ANS-104 data items with an Arweave JWK and upload
- * them to a Turbo upload service. Zero runtime dependencies.
+ * @ardrive/turbo-upload, the Node build: sign ANS-104 data items with an
+ * Arweave JWK, a Solana key or a wallet-style signer, and upload them to Turbo.
+ * Zero runtime dependencies. The browser build's declarations are web.d.ts.
  *
  * Hand-written declarations: no `typescript` build step, no `@types/*`, nothing
  * in `dependencies`.
@@ -56,12 +57,40 @@ export interface RetryConfig {
   retryStatuses: number[];
 }
 
+/**
+ * A wallet-style signer: the shape of a Solana wallet adapter. Pass the adapter
+ * itself; its other properties are ignored.
+ *
+ * `signMessage` is called once per item with the 96 ASCII bytes of the hex of
+ * the item's deep hash, and must sign exactly those bytes. Its signature is
+ * verified before it is used: a wallet that signs anything else (a prefixed
+ * message, a hardware wallet's off-chain format) throws TurboSignerError and
+ * nothing is uploaded.
+ */
+export interface SolanaWalletSigner {
+  /** 32 bytes, a base58 string, or an object with toBytes() (web3.js) or toBuffer(). */
+  publicKey: Uint8Array | string | number[] | { toBytes(): Uint8Array } | { toBuffer(): Uint8Array };
+  /** Sign the bytes given, raw. A wallet that answers `{ signature }` (Phantom's provider) works too. */
+  signMessage(message: Uint8Array): Promise<Uint8Array | { signature: Uint8Array }> | Uint8Array | { signature: Uint8Array };
+  /**
+   * Ed25519 verification, in the order `(message, signature, publicKey)`. Optional in Node,
+   * which verifies with node:crypto; the web build uses it when the runtime has no WebCrypto Ed25519.
+   */
+  verify?(message: Uint8Array, signature: Uint8Array, publicKey: Uint8Array): boolean | Promise<boolean>;
+}
+
 export interface TurboUploadOptions {
   /**
    * The signing key. An Arweave JWK by default, or a Solana secret key when
-   * `token` is `"solana"`. Validated in the constructor either way.
+   * `token` is `"solana"`. Validated in the constructor either way. Pass this
+   * or `signer`, not both.
    */
-  jwk: JWKInput | SolanaKeyInput;
+  jwk?: JWKInput | SolanaKeyInput;
+  /**
+   * A wallet-style signer, in place of `jwk`. Signs Solana items (type 4), so
+   * `token` defaults to "solana". Use `signAsync()` rather than `sign()`.
+   */
+  signer?: SolanaWalletSigner;
   /** Upload service base URL. Default https://upload.ardrive.io */
   uploadUrl?: string;
   /** Payment service base URL. Default https://payment.ardrive.io */
@@ -71,7 +100,7 @@ export interface TurboUploadOptions {
   /** Partial retry config, merged over the defaults. `false` disables retrying. */
   retry?: Partial<RetryConfig> | false;
   /**
-   * Which key `jwk` holds. Default "arweave".
+   * Which key `jwk` holds. Default "arweave", or "solana" with `signer`.
    *
    * "solana" signs ANS-104 type 4, matching what `@ardrive/turbo-sdk` emits for
    * the same token, so ids agree between the two. Any other value throws a
@@ -99,6 +128,28 @@ export interface UploadOptions extends SignOptions {
   signal?: AbortSignal;
   /** Overrides the client's timeoutMs for this call. */
   timeoutMs?: number;
+  /**
+   * ONE address whose credits pay for this upload, sent as `x-paid-by`. That
+   * address must first have shared credits with the signer (see
+   * `shareCredits`). A list is refused: the service answers 402 to one.
+   */
+  paidBy?: string;
+}
+
+export interface UploadSignedOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  /** ONE paying address, as in UploadOptions. */
+  paidBy?: string;
+}
+
+export interface DataItemSizeOptions {
+  /** The payload, or its length as `dataSize`: exactly one of the two. */
+  data?: Buffer | Uint8Array | string;
+  dataSize?: number;
+  tags?: Tag[];
+  target?: string | Buffer | Uint8Array;
+  anchor?: string | Buffer | Uint8Array;
 }
 
 export interface SignedDataItem {
@@ -180,17 +231,24 @@ export declare class TurboUpload {
   /** A client pointed at production. */
   static production(options: Omit<TurboUploadOptions, "uploadUrl" | "paymentUrl"> & Partial<TurboUploadOptions>): TurboUpload;
 
-  /** The signing wallet's Arweave address: base64url(SHA-256(owner)). */
+  /** The signing address: base64url(SHA-256(owner)) for Arweave, base58 for Solana. */
   readonly address: string;
-  /** The 512-byte RSA modulus as it appears on the wire. */
+  /** The owner field as it appears on the wire: the 512-byte RSA modulus, or the 32-byte Ed25519 public key. */
   readonly owner: Buffer;
+  /** 1 (Arweave) or 4 (Solana). */
+  readonly signatureType: number;
+  readonly token: TurboToken;
   readonly uploadUrl: string;
   readonly paymentUrl: string;
   readonly timeoutMs: number;
   readonly retry: RetryConfig;
 
-  /** Sign a data item without uploading it. */
+  /** Sign a data item without uploading it. Needs `jwk`; a `signer` client uses signAsync(). */
   sign(options: SignOptions): SignedDataItem;
+  /** Sign through whichever signer this client has. With a wallet signer, the signature is verified first. */
+  signAsync(options: SignOptions): Promise<SignedDataItem>;
+  /** The byte length of the signed item these options would produce. Price this, not the payload. */
+  getDataItemSize(options: DataItemSizeOptions): number;
   /** Sign and upload. Throws if the service returns an id we did not produce. */
   upload(options: UploadOptions): Promise<UploadResult>;
   /**
@@ -200,10 +258,7 @@ export declare class TurboUpload {
    * calling `sign()` and then `upload()` signs twice and yields two different
    * ids.
    */
-  uploadSigned(
-    item: SignedDataItem | Buffer | Uint8Array,
-    options?: { signal?: AbortSignal; timeoutMs?: number },
-  ): Promise<UploadResult>;
+  uploadSigned(item: SignedDataItem | Buffer | Uint8Array, options?: UploadSignedOptions): Promise<UploadResult>;
   /** Price in winc for a given raw byte count. */
   getUploadCost(bytes: number, options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<UploadCost>;
   /** Credit balance. An unknown wallet reports zeros rather than throwing. */
@@ -307,6 +362,16 @@ export declare function verifyMessage(
 /** id = SHA-256(signature). */
 export declare function idFromSignature(signature: Buffer | Uint8Array): Buffer;
 
+/**
+ * A wallet-style signer over a Solana key this process holds, the same shape as
+ * a browser wallet adapter. Takes every form `jwk` does with token "solana".
+ */
+export declare function createSolanaSigner(secretKey: SolanaKeyInput): Readonly<{
+  publicKey: Uint8Array;
+  signMessage(message: Uint8Array): Promise<Uint8Array>;
+  verify(message: Uint8Array, signature: Uint8Array, publicKey?: Uint8Array): boolean;
+}>;
+
 /** Accept a JWK as an object or a JSON string; throws a clear error otherwise. */
 export declare function parseJwk(input: JWKInput): ArweaveJWK;
 
@@ -403,4 +468,14 @@ export declare class TurboVerificationError extends TurboError {
   readonly expectedId?: string;
   readonly receivedId?: string;
   readonly endpoint?: string;
+}
+
+/**
+ * A wallet-style signer could not produce a usable signature: signMessage
+ * threw, returned something that is not 64 bytes, or returned a signature
+ * that does not verify. Nothing was uploaded. Hardware wallets are the usual
+ * cause: they cannot sign data items.
+ */
+export declare class TurboSignerError extends TurboError {
+  constructor(message: string, options?: { cause?: unknown });
 }

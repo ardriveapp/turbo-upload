@@ -1,7 +1,7 @@
 {
   "name": "@ardrive/turbo-upload",
-  "version": "0.3.0",
-  "description": "Zero-dependency ANS-104 data-item signing and Turbo upload, for Arweave JWKs and Solana keys. Server-side Node, no wallet connectors, no CLI.",
+  "version": "0.4.0",
+  "description": "A light Turbo client for Node and browsers, with zero dependencies: ANS-104 data-item signing (Arweave JWKs, Solana keys, wallet signers) and upload.",
   "keywords": [
     "arweave",
     "ed25519",
@@ -13,6 +13,8 @@
     "data-item",
     "bundle",
     "zero-dependency",
+    "browser",
+    "wallet",
     "upload"
   ],
   "license": "Apache-2.0",
@@ -20,6 +22,18 @@
   "types": "index.d.ts",
   "exports": {
     ".": {
+      "browser": {
+        "types": "./web.d.ts",
+        "default": "./web.js"
+      },
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./web": {
+      "types": "./web.d.ts",
+      "default": "./web.js"
+    },
+    "./node": {
       "types": "./index.d.ts",
       "default": "./index.js"
     },
@@ -31,6 +45,8 @@
   "files": [
     "index.js",
     "index.d.ts",
+    "web.js",
+    "web.d.ts",
     "src/",
     "examples/",
     "test/",

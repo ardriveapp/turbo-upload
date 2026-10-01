@@ -36,6 +36,9 @@ test("no shipped source file requires anything but node: builtins", () => {
     "node:fs",
     "node:path",
     "node:url",
+    // test/web.test.js only: it loads the web build in a fresh realm with no
+    // Buffer and no process, which is what node:vm is for.
+    "node:vm",
   ]);
 
   const files = [];
@@ -51,6 +54,7 @@ test("no shipped source file requires anything but node: builtins", () => {
   walk(path.join(root, "src"));
   walk(path.join(root, "test"));
   files.push(path.join(root, "index.js"));
+  files.push(path.join(root, "web.js"));
 
   const offenders = [];
   for (const file of files) {
@@ -146,5 +150,28 @@ test("src/core uses no node: module, no Buffer and no process", () => {
     if (/\bBuffer\b/.test(code)) offenders.push(`${f} uses Buffer`);
     if (/\bprocess\b/.test(code)) offenders.push(`${f} uses process`);
   }
+  assert.deepEqual(offenders, [], offenders.join("\n"));
+});
+
+test("nothing reachable from web.js uses a node: module, Buffer or process", () => {
+  // Walk the require graph from the web entry point, the way a bundler does.
+  // Everything it reaches ships to a browser, so everything it reaches is held
+  // to the core's rule, not only the files that happen to live in src/core.
+  const seen = new Set();
+  const offenders = [];
+  const visit = (file) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const src = fs.readFileSync(file, "utf8");
+    for (const spec of externalSpecifiers(src)) offenders.push(`${path.relative(root, file)} requires ${spec}`);
+    const code = codeOnly(src);
+    if (/\bBuffer\b/.test(code)) offenders.push(`${path.relative(root, file)} uses Buffer`);
+    if (/\bprocess\b/.test(code)) offenders.push(`${path.relative(root, file)} uses process`);
+    for (const m of withoutComments(src).matchAll(/require\(\s*["'](\.[^"']+)["']\s*\)/g)) {
+      visit(path.resolve(path.dirname(file), m[1].endsWith(".js") ? m[1] : `${m[1]}.js`));
+    }
+  };
+  visit(path.join(root, "web.js"));
+  assert.ok(seen.size >= 8, `expected to walk the web graph, reached ${seen.size} files`);
   assert.deepEqual(offenders, [], offenders.join("\n"));
 });

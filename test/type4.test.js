@@ -63,3 +63,43 @@ test("type 4, every turbo-sdk item verifies here, and a flipped byte does not", 
     }
   }
 });
+
+test("type 4, signAsync with a keypair signer: byte-identical", { skip }, async () => {
+  const { createSolanaSigner } = require("../index.js");
+  for (const v of V.vectors) {
+    const client = new TurboUpload({ signer: createSolanaSigner(Buffer.from(v.seed_hex, "hex")) });
+    const item = await client.signAsync(inputOf(v));
+    assert.equal(item.binary.toString("hex"), v.expected.signed_item_hex, v.name);
+    assert.equal(item.idB64Url, v.expected.id_b64url, v.name);
+  }
+});
+
+test("type 4, signAsync with a wallet-style signMessage signer: byte-identical", { skip }, async () => {
+  // The shape a browser wallet adapter has: a base58 public key and a
+  // signMessage that signs whatever bytes it is handed and answers
+  // { signature }, as Phantom's injected provider does. Built here on
+  // node:crypto, with nothing from this package.
+  const crypto = require("node:crypto");
+  for (const v of V.vectors) {
+    const seed = Buffer.from(v.seed_hex, "hex");
+    const privateKey = crypto.createPrivateKey({
+      key: Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), seed]),
+      format: "der",
+      type: "pkcs8",
+    });
+    let calls = 0;
+    const wallet = {
+      publicKey: v.public_key_base58,
+      signMessage: async (message) => {
+        calls++;
+        assert.equal(message.length, 96, "the wallet is handed the 96 hex bytes of the deep hash");
+        assert.match(Buffer.from(message).toString("utf8"), /^[0-9a-f]{96}$/);
+        return { signature: new Uint8Array(crypto.sign(null, Buffer.from(message), privateKey)) };
+      },
+    };
+    const client = new TurboUpload({ signer: wallet });
+    const item = await client.signAsync(inputOf(v));
+    assert.equal(calls, 1, "one signMessage call per item");
+    assert.equal(item.binary.toString("hex"), v.expected.signed_item_hex, v.name);
+  }
+});

@@ -143,6 +143,20 @@ function signEd25519(seed, signatureData) {
  * @returns {boolean}
  */
 function verifyEd25519(publicKey, signatureData, signature) {
+  return verifyEd25519Raw(publicKey, hexMessage(signatureData), signature);
+}
+
+/**
+ * Plain Ed25519 verification of `message`, with NO hex step: the message is
+ * checked exactly as given. This is what a wallet's signature is checked with,
+ * because the client already handed the wallet the hex bytes.
+ *
+ * @param {Uint8Array} publicKey 32 bytes
+ * @param {Uint8Array} message
+ * @param {Uint8Array} signature 64 bytes
+ * @returns {boolean}
+ */
+function verifyEd25519Raw(publicKey, message, signature) {
   if (publicKey.length !== PUBLIC_KEY_BYTES || signature.length !== 64) return false;
   try {
     const key = crypto.createPublicKey({
@@ -150,10 +164,34 @@ function verifyEd25519(publicKey, signatureData, signature) {
       format: "der",
       type: "spki",
     });
-    return crypto.verify(null, hexMessage(signatureData), key, signature);
+    return crypto.verify(null, Buffer.from(message), key, Buffer.from(signature));
   } catch {
     return false;
   }
+}
+
+/**
+ * A wallet-style signer over a Solana key this process holds: the same shape
+ * as a browser wallet adapter, `{ publicKey, signMessage, verify }`, so code
+ * written against a wallet can run in Node, in tests and in scripts unchanged.
+ *
+ * `signMessage` signs the bytes it is given, exactly as a wallet does; the
+ * client supplies the hex step. Takes every key form `parseSolanaKey` does.
+ *
+ * @param {string|Uint8Array|number[]} secretKey
+ */
+function createSolanaSigner(secretKey) {
+  const { seed, publicKey } = parseSolanaKey(secretKey);
+  const key = crypto.createPrivateKey({
+    key: Buffer.concat([PKCS8_PREFIX, seed]),
+    format: "der",
+    type: "pkcs8",
+  });
+  return Object.freeze({
+    publicKey: Uint8Array.from(publicKey),
+    signMessage: async (message) => new Uint8Array(crypto.sign(null, Buffer.from(message), key)),
+    verify: (message, signature, pub = publicKey) => verifyEd25519Raw(pub, message, signature),
+  });
 }
 
 /** The type 4 convention: sign the lowercase hex of the bytes, not the bytes. */
@@ -165,6 +203,8 @@ module.exports = {
   parseSolanaKey,
   signEd25519,
   verifyEd25519,
+  verifyEd25519Raw,
+  createSolanaSigner,
   publicKeyFromSeed,
   SEED_BYTES,
   PUBLIC_KEY_BYTES,

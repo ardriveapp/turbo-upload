@@ -105,7 +105,25 @@ class TurboVerificationError extends TurboError {
   }
 }
 
+/**
+ * A wallet-style signer did not produce a usable signature: `signMessage`
+ * threw, returned something that is not 64 bytes, or returned a signature that
+ * does not verify against the signer's public key over the exact message.
+ *
+ * One class for all three, because the caller's remedy is the same: this
+ * signer cannot sign data items. Hardware wallets are the usual cause. A
+ * Ledger, used directly or as an account inside a browser wallet, signs Solana
+ * transactions and off-chain messages but not the raw bytes a data item needs.
+ * Nothing is uploaded when this is thrown, so nothing is paid for.
+ */
+class TurboSignerError extends TurboError {
+  constructor(message, { cause } = {}) {
+    super(message, { cause });
+  }
+}
+
 module.exports = {
+  TurboSignerError,
   TurboPaymentError,
   TurboError,
   TurboConfigError,

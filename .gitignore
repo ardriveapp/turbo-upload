@@ -5,3 +5,6 @@ node_modules/
 # never commit a wallet
 *key.json
 !vectors/vectors.json
+# the browser harness's build output and run reports
+harness/dist/bundle.js
+harness/results/

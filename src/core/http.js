@@ -3,7 +3,9 @@
  * A small fetch wrapper: default timeout, partial retry config, and errors that
  * say what happened.
  *
- * Uses the global `fetch` (Node >= 18), so there is no HTTP client dependency.
+ * Uses the global `fetch` (Node >= 18, every browser), so there is no HTTP
+ * client dependency. Shared by both builds: nothing here may touch a `node:`
+ * module, Buffer or process.
  */
 
 const {
@@ -56,6 +58,23 @@ function resolveRetryConfig(retry) {
     throw new TurboConfigError("`retry.retryStatuses` must be an array of HTTP status codes.");
   }
   return merged;
+}
+
+/**
+ * AbortSignal.any where the runtime has it, and the same thing by hand where it
+ * does not: jsdom and older Safari lack it.
+ */
+function anySignal(signals) {
+  if (typeof AbortSignal.any === "function") return AbortSignal.any(signals);
+  const controller = new AbortController();
+  for (const s of signals) {
+    if (s.aborted) {
+      controller.abort(s.reason);
+      break;
+    }
+    s.addEventListener("abort", () => controller.abort(s.reason), { once: true });
+  }
+  return controller.signal;
 }
 
 const sleep = (ms, signal) =>
@@ -126,7 +145,7 @@ async function request({
     // caller's own signal still aborts the whole operation immediately.
     const timeoutController = new AbortController();
     const timer = setTimeout(() => timeoutController.abort(new Error(`timed out after ${timeoutMs}ms`)), timeoutMs);
-    const composed = signal ? AbortSignal.any([signal, timeoutController.signal]) : timeoutController.signal;
+    const composed = signal ? anySignal([signal, timeoutController.signal]) : timeoutController.signal;
 
     let res;
     try {
@@ -185,4 +204,4 @@ async function request({
   }
 }
 
-module.exports = { request, resolveRetryConfig, DEFAULT_TIMEOUT_MS, DEFAULT_RETRY };
+module.exports = { request, resolveRetryConfig, anySignal, sleep, DEFAULT_TIMEOUT_MS, DEFAULT_RETRY };
