@@ -35,6 +35,7 @@ const {
   TurboPaymentError,
   TurboVerificationError,
   TurboSignerError,
+  TurboChunkedUploadError,
 } = require("./src/errors.js");
 
 const {
@@ -107,4 +108,5 @@ module.exports = {
   TurboPaymentError,
   TurboVerificationError,
   TurboSignerError,
+  TurboChunkedUploadError,
 };

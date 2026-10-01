@@ -13,7 +13,7 @@
 const { Buffer } = require("node:buffer");
 const ans104 = require("./ans104.js");
 const { loadJwk } = require("./jwk.js");
-const { parseSolanaKey, verifyEd25519Raw } = require("./ed25519.js");
+const { parseSolanaKey, verifyEd25519Raw, signEd25519 } = require("./ed25519.js");
 const { TurboUploadCore, assertKnownOptions } = require("./core/client.js");
 const { TurboValidationError } = require("./errors.js");
 
@@ -50,6 +50,13 @@ const NODE_PLATFORM = Object.freeze({
       address: loaded.address,
       fields: { jwk: loaded.jwk, seed: null, privateKey: loaded.privateKey },
     };
+  },
+
+  /** Sign a deep hash computed elsewhere (a streamed item's), with the key this client holds. */
+  signSignatureData(client, signatureData) {
+    return client.signatureType === ans104.SIG_TYPE_SOLANA
+      ? signEd25519(client.seed, signatureData)
+      : ans104.signMessage(client.jwk, signatureData, { privateKey: client.privateKey });
   },
 
   signSync(client, { data, tags, target, anchor }) {

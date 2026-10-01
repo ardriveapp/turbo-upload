@@ -30,6 +30,7 @@ const WEB_PLATFORM = Object.freeze({
   // signer's own `verify`, or WebCrypto where the runtime has Ed25519.
   verifyEd25519Raw: undefined,
   signSync: undefined,
+  signSignatureData: undefined,
   loadKey() {
     throw new TurboConfigError(
       "The web build signs through a wallet-style `signer` ({ publicKey, signMessage }), not a raw key: " +

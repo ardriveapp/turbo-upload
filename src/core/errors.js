@@ -122,8 +122,30 @@ class TurboSignerError extends TurboError {
   }
 }
 
+/**
+ * A chunked upload was accepted chunk by chunk but did not finalize: the
+ * service reported a failed status (`INVALID`, `APPROVAL_FAILED`, ...), or it was
+ * still assembling when the wait ran out.
+ *
+ * Carries `uploadId`, so the upload can be looked up later, and `uploadStatus`,
+ * the last status the service reported. `UNDERFUNDED` is not this class: it
+ * is a TurboPaymentError, like every other "cannot pay".
+ *
+ * `INVALID` does not always mean malformed bytes: the testnet service
+ * finalizes every item over 10,485,760 bytes as `INVALID`, whoever sends it.
+ */
+class TurboChunkedUploadError extends TurboError {
+  constructor(message, { uploadId, uploadStatus, endpoint, cause } = {}) {
+    super(message, { cause });
+    this.uploadId = uploadId;
+    this.uploadStatus = uploadStatus;
+    this.endpoint = endpoint;
+  }
+}
+
 module.exports = {
   TurboSignerError,
+  TurboChunkedUploadError,
   TurboPaymentError,
   TurboError,
   TurboConfigError,

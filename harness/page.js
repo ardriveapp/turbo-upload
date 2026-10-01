@@ -167,6 +167,43 @@ async function devnet(params) {
       return { id: res.id, winc: res.winc, approvalUsed: `${before} -> ${after}` };
     });
   }
+  // Chunked uploads. Devnet finalizes nothing over 10,485,760 bytes, so the
+  // ones that are fetched back are 10 MiB and under, sent in two chunks; the
+  // large ones are attempted and their outcome recorded as it is.
+  const MiB = 1024 * 1024;
+  await step("chunked, two 5 MiB chunks, paid", async () => {
+    const size = 10 * MiB - payer.getDataItemSize({ dataSize: 0 });
+    const data = deterministicBytes(params.chunkDataSeed, size);
+    let chunks = 0;
+    const res = await payer.upload({ data, chunking: "force", onProgress: () => chunks++ });
+    results.uploads.push({ label: "chunked 2 x 5 MiB", id: res.id, seed: params.chunkDataSeed, bytes: size, sha256: await sha256Hex(data), winc: res.winc });
+    return { id: res.id, byteCount: res.byteCount, chunks, winc: res.winc };
+  });
+  await step("chunked stream from a Blob, paidBy", async () => {
+    const spender2 = make(params.spender2SeedHex);
+    const size = 9.5 * MiB - spender2.getDataItemSize({ dataSize: 0 });
+    const price = BigInt((await payer.getUploadCost(spender2.getDataItemSize({ dataSize: size }))).winc);
+    await payer.shareCredits({ approvedAddress: spender2.address, approvedWincAmount: (price * 12n) / 10n, expiresBySeconds: 900 });
+    const data = deterministicBytes(params.streamDataSeed, size);
+    const blob = new Blob([data]);
+    const res = await spender2.uploadStream({ streamFactory: () => blob.stream(), size, paidBy: payer.address, chunking: "force" });
+    results.uploads.push({ label: "chunked stream, paidBy", id: res.id, seed: params.streamDataSeed, bytes: size, sha256: await sha256Hex(data), winc: res.winc });
+    return { id: res.id, byteCount: res.byteCount, winc: res.winc };
+  });
+  for (const mib of params.largeMiB || []) {
+    await step(`chunked ${mib} MiB`, async () => {
+      const data = deterministicBytes(`${params.chunkDataSeed}-${mib}`, mib * MiB);
+      let chunks = 0;
+      const t0 = Date.now();
+      try {
+        const res = await payer.upload({ data, onProgress: () => chunks++ });
+        results.uploads.push({ label: `chunked ${mib} MiB`, id: res.id, seed: `${params.chunkDataSeed}-${mib}`, bytes: mib * MiB, winc: res.winc });
+        return { id: res.id, chunks, seconds: (Date.now() - t0) / 1000 };
+      } catch (err) {
+        throw new Error(`${chunks} chunks sent in ${((Date.now() - t0) / 1000).toFixed(1)}s, then ${err.name} ${err.uploadStatus || err.status || ""} (upload ${err.uploadId})`);
+      }
+    });
+  }
   return results;
 }
 

@@ -10,7 +10,8 @@
  * a call that sends the same thing sends the same bytes: Ed25519 is
  * deterministic, and the credit-share nonce reads Date.now(), which is fixed
  * here. For each call this compares the method, the path and query, the body
- * byte for byte, and the headers the service reads (content-type, x-paid-by).
+ * byte for byte, and the headers the service reads (content-type, x-paid-by,
+ * x-chunking-version).
  * Every other header is printed, not compared: turbo-sdk names itself in
  * x-turbo-source-*, and this package does not.
  *
@@ -30,6 +31,9 @@ const FIXED_NOW = 1790000000000;
 const FUNDING = "Bg5HnSVtgHVXEGqJYWqxWad9Vrcgva9JrKw3XFSEGvaB";
 const TX_ID = "2L67qAbftL66k4oQoPbLJks2VPKweyhEkoXBCxoZSu11MLUUpGdTdwCquriCrTEaErTGpCgrZwStoG2FR9d4Mn4t";
 
+let uploadCounter = 0;
+const chunkedUploads = new Map();
+
 /** What the capture server answers, per route. Plausible, not exhaustive. */
 function answer(method, url, body) {
   const json = (o, status = 200) => ({ status, body: JSON.stringify(o) });
@@ -44,6 +48,23 @@ function answer(method, url, body) {
   }
   if (method === "GET" && path.startsWith("/v1/top-up/checkout-session/")) {
     return json({ adjustments: [], fees: [], topUpQuote: { winstonCreditAmount: "7", paymentAmount: 1000, quotedPaymentAmount: 1000 }, paymentSession: { id: "cs_test_x", url: "https://checkout.stripe.test/x", client_secret: null } });
+  }
+  if (method === "GET" && path === "/v1/chunks/solana/-1/-1") {
+    const id = `upload-${++uploadCounter}`;
+    chunkedUploads.set(id, []);
+    return json({ id, min: 5242880, max: 524288000, chunkSize: Number(new URL(url, "http://x").searchParams.get("chunkSize")) });
+  }
+  let m;
+  if (method === "POST" && (m = path.match(/^\/v1\/chunks\/solana\/([^/]+)\/(\d+)$/))) {
+    chunkedUploads.get(m[1]).push([Number(m[2]), body]);
+    return { status: 200, body: "OK", type: "text/plain" };
+  }
+  if (method === "POST" && (m = path.match(/^\/v1\/chunks\/solana\/([^/]+)\/finalize$/))) return { status: 202, body: "Accepted", type: "text/plain" };
+  if (method === "GET" && (m = path.match(/^\/v1\/chunks\/solana\/([^/]+)\/status$/))) {
+    const parts = chunkedUploads.get(m[1]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
+    const item = Buffer.concat(parts);
+    const id = crypto.createHash("sha256").update(item.subarray(2, 66)).digest("base64url");
+    return json({ status: "FINALIZED", receipt: { id, winc: "1" } });
   }
   if (method === "POST" && (path === "/v1/tx" || path === "/v1/tx/solana")) {
     const item = pkg.parseDataItem(body);
@@ -68,7 +89,7 @@ async function main() {
       const body = Buffer.concat(parts);
       captured.push({ method: req.method, url: req.url, headers: req.headers, body });
       const a = answer(req.method, req.url, body);
-      res.writeHead(a.status, { "content-type": "application/json" }).end(a.body);
+      res.writeHead(a.status, { "content-type": a.type || "application/json" }).end(a.body);
     });
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -95,6 +116,7 @@ async function main() {
 
   const data = Buffer.from("wire parity payload");
   const tags = [{ name: "Content-Type", value: "text/plain" }];
+  const big = Buffer.alloc(11 * 1024 * 1024, 7); // over two 5 MiB chunks
   const calls = [
     ["getBalance", () => sdk.getBalance(), () => ours.getBalance()],
     ["upload cost", () => sdk.getUploadCosts({ bytes: [1234] }), () => ours.getUploadCost(1234)],
@@ -111,11 +133,13 @@ async function main() {
       () => ours.upload({ data, tags })],
     ["upload with paidBy", () => sdk.uploadFile({ fileStreamFactory: () => data, fileSizeFactory: () => data.length, dataItemOpts: { tags, paidBy: payer } }),
       () => ours.upload({ data, tags, paidBy: payer })],
+    ["chunked upload with paidBy", () => sdk.uploadFile({ fileStreamFactory: () => big, fileSizeFactory: () => big.length, dataItemOpts: { tags, paidBy: payer }, chunkingMode: "force", maxChunkConcurrency: 1 }),
+      () => ours.upload({ data: big, tags, paidBy: payer, chunking: "force", chunkConcurrency: 1 })],
     ["upload with paidBy, wallet signer", () => sdk.uploadFile({ fileStreamFactory: () => data, fileSizeFactory: () => data.length, dataItemOpts: { tags, paidBy: payer } }),
       () => viaSigner.upload({ data, tags, paidBy: payer })],
   ];
 
-  const READ = ["content-type", "x-paid-by"];
+  const READ = ["content-type", "x-paid-by", "x-chunking-version"];
   let failures = 0;
   const rows = [];
   for (const [name, viaSdk, viaUs] of calls) {
@@ -130,6 +154,9 @@ async function main() {
       const x = a[i];
       const y = b[i];
       const routeOnly = x.url === "/v1/tx/solana" && y.url === "/v1/tx";
+      // Each run opens its own upload, so the id in a chunk path differs by design.
+      x.url = x.url.replace(/upload-\d+/, "<upload>");
+      y.url = y.url.replace(/upload-\d+/, "<upload>");
       if (x.method !== y.method) problems.push(`method ${x.method} vs ${y.method}`);
       if (x.url !== y.url && !routeOnly) problems.push(`url ${x.url} vs ${y.url}`);
       if (!x.body.equals(y.body)) problems.push(`body differs (${x.body.length} vs ${y.body.length} bytes)`);

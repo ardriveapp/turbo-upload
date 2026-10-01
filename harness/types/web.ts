@@ -35,3 +35,10 @@ async function payments(): Promise<string> {
   return `${w.winc}${f.bytesRemaining}${r.status}${a.approvalDataItemId}${s.url}${addr}`;
 }
 void payments;
+
+async function chunkedTypes(blob: Blob): Promise<string> {
+  const r = await client.uploadStream({ streamFactory: () => blob.stream(), size: blob.size, chunking: "auto", onProgress: (p) => void p.processedBytes });
+  const s = await client.upload({ data: new Uint8Array(1), chunking: "force", chunkSize: 5 * 1024 * 1024, chunkConcurrency: 2 });
+  return r.id + s.id;
+}
+void chunkedTypes;

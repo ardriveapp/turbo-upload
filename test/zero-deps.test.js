@@ -39,6 +39,9 @@ test("no shipped source file requires anything but node: builtins", () => {
     // test/web.test.js only: it loads the web build in a fresh realm with no
     // Buffer and no process, which is what node:vm is for.
     "node:vm",
+    // test/chunked.test.js only: a Node Readable is one of the stream kinds
+    // uploadStream takes. The package itself never imports it.
+    "node:stream",
   ]);
 
   const files = [];

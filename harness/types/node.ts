@@ -33,3 +33,16 @@ async function payments(): Promise<string> {
   return `${s.id}${r.status}${q}`;
 }
 void payments;
+
+import { createReadStream } from "node:fs";
+import { TurboChunkedUploadError } from "@ardrive/turbo-upload";
+async function streamTypes(): Promise<string> {
+  try {
+    const r = await fromKey.uploadStream({ streamFactory: () => createReadStream("/dev/null"), size: 0, paidBy: "p" });
+    return r.id;
+  } catch (e) {
+    if (e instanceof TurboChunkedUploadError) return `${e.uploadId}${e.uploadStatus}`;
+    throw e;
+  }
+}
+void streamTypes;

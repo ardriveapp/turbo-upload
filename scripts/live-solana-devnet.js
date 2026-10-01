@@ -18,10 +18,12 @@
  *                  not a devnet host is refused.
  *   --upload-url, --payment-url
  *                  default the TESTNET records. Production hosts are refused.
- *   --skip         comma-separated step names to skip
+ *   --chunked      MiB sizes for the large chunked uploads. Default "50,200".
+ *   --skip         step names to skip, separated by "|"
  *
  * Every upload is fetched back from https://ar-io.dev/raw/<id> and compared
- * byte for byte with what was sent. Every request, from this package and from
+ * byte for byte with what was sent, in ranges that wait out the gateway's
+ * per-IP egress meter. Every request, from this package and from
  * @solana/web3.js, goes through one fetch that refuses any host not on the
  * devnet list before the request leaves.
  */
@@ -29,11 +31,13 @@
 const fs = require("node:fs");
 const crypto = require("node:crypto");
 const { Buffer } = require("node:buffer");
+const { Readable } = require("node:stream");
 const {
   TurboUpload,
   TESTNET,
   PRODUCTION,
   TurboPaymentError,
+  TurboChunkedUploadError,
   createSolanaSigner,
 } = require("..");
 
@@ -81,7 +85,8 @@ const RPC = arg("--rpc", "https://api.devnet.solana.com");
 const UPLOAD_URL = arg("--upload-url", TESTNET.uploadUrl);
 const PAYMENT_URL = arg("--payment-url", TESTNET.paymentUrl);
 const GATEWAY = "https://ar-io.dev";
-const SKIP = new Set((arg("--skip", "") || "").split(",").filter(Boolean));
+const SKIP = new Set((arg("--skip", "") || "").split("|").filter(Boolean));
+const LARGE_MIB = (arg("--chunked", "50,200") || "").split(",").filter(Boolean).map(Number);
 
 if (args.includes("--check-guards")) {
   // Offline: every refusal this script promises, without touching the network.
@@ -173,6 +178,46 @@ async function winc(client, address) {
 async function approvalTo(payer, to) {
   const bal = await payer.getBalance();
   return (bal.givenApprovals || []).find((a) => a.approvedAddress === to);
+}
+
+/**
+ * Read an item back from the gateway in 1 MiB ranges and compare it.
+ *
+ * The gateway meters egress per IP (about 100 MB, refilling at about 20 KB/s;
+ * see its /ar-io/info) and answers 402 with an x402 offer once the meter is
+ * empty. A 402, a 429 or a 404 (not indexed yet) waits 30 s and reads the same
+ * range again; nothing is paid. Gives up after two hours.
+ */
+async function fetchBack(id, expected) {
+  const url = `${GATEWAY}/raw/${id}`;
+  const got = Buffer.alloc(expected.length);
+  const t0 = Date.now();
+  let pos = 0;
+  let reads = 0;
+  let waits = 0;
+  while (pos < expected.length) {
+    if (Date.now() - t0 > 2 * 60 * 60 * 1000) return { equal: false, reads, waits, error: `gave up at byte ${pos}` };
+    const end = Math.min(pos + 1024 * 1024, expected.length) - 1;
+    let res;
+    try {
+      res = await fetch(url, { headers: { Range: `bytes=${pos}-${end}` } });
+      if ([402, 404, 429].includes(res.status)) {
+        await res.arrayBuffer().catch(() => {});
+        waits++;
+        await new Promise((r) => setTimeout(r, 30_000));
+        continue;
+      }
+      if (res.status !== 206 && res.status !== 200) return { equal: false, reads, waits, error: `HTTP ${res.status}` };
+      const body = Buffer.from(await res.arrayBuffer());
+      reads++;
+      if (res.status === 200) return { equal: body.equals(expected), reads, waits, error: "full body" };
+      body.copy(got, pos, 0, end - pos + 1);
+      pos = end + 1;
+    } catch (err) {
+      await new Promise((r) => setTimeout(r, 10_000));
+    }
+  }
+  return { equal: got.equals(expected), reads, waits, error: "bytes differ" };
 }
 
 /* ------------------------------- flow -------------------------------- */
@@ -325,26 +370,73 @@ async function approvalTo(payer, to) {
     expect(typeof s.url === "string" && s.url.startsWith("https://"), "a hosted checkout URL");
   });
 
+  /* ------------------------------ chunked ----------------------------- */
+
+  const MiB = 1024 * 1024;
+  await step("chunked upload, two 5 MiB chunks", async () => {
+    // Exactly 10 MiB: one byte under the size that goes chunked on its own,
+    // so chunking is forced. Over the free per-item ceiling, so it is paid.
+    const overhead = payer.getDataItemSize({ dataSize: 0, tags: TAGS });
+    const data = crypto.randomBytes(10 * MiB - overhead);
+    const chunks = [];
+    const before = await winc(payer);
+    const res = await payer.upload({ data, tags: TAGS, chunking: "force", onProgress: (p) => chunks.push(p.processedBytes) });
+    const after = await winc(payer);
+    line("item bytes", `${res.byteCount} in ${chunks.length} chunks, upload ${res.uploadId}`);
+    line("charged", `${res.winc} winc; balance moved ${before - after}`);
+    expect(res.byteCount === 10 * MiB, "the item is exactly 10 MiB");
+    expect(chunks.length === 2, "two chunks");
+    expect(before - after === BigInt(res.winc), "the charge came out of the payer's balance");
+    recorded("chunked 2 x 5 MiB", res, data);
+  });
+
+  await step("chunked stream upload with paidBy, 5 + 4.5 MiB", async () => {
+    const spender = testnet({ signer: createSolanaSigner(crypto.randomBytes(32)) });
+    const size = 9.5 * MiB - spender.getDataItemSize({ dataSize: 0, tags: TAGS });
+    const price = BigInt((await payer.getUploadCost(spender.getDataItemSize({ dataSize: size, tags: TAGS }))).winc);
+    await payer.shareCredits({ approvedAddress: spender.address, approvedWincAmount: (price * 12n) / 10n, expiresBySeconds: 900 });
+    const data = crypto.randomBytes(size);
+    const pieces = () => Readable.from((function* () { for (let i = 0; i < data.length; i += 256 * 1024) yield data.subarray(i, i + 256 * 1024); })());
+    const usedBefore = BigInt((await approvalTo(payer, spender.address))?.usedWincAmount ?? "0");
+    const res = await spender.uploadStream({ streamFactory: pieces, size, tags: TAGS, paidBy: payer.address, chunking: "force" });
+    const usedAfter = BigInt((await approvalTo(payer, spender.address))?.usedWincAmount ?? "0");
+    line("item bytes", `${res.byteCount}, upload ${res.uploadId}`);
+    line("charged", `${res.winc} winc; approval used ${usedBefore} -> ${usedAfter}`);
+    expect(usedAfter - usedBefore === BigInt(res.winc) && BigInt(res.winc) > 0n, "x-paid-by on finalize charged the payer's approval");
+    recorded("chunked stream, paidBy", res, data);
+  });
+
+  for (const mib of LARGE_MIB) {
+    await step(`chunked upload, ${mib} MiB`, async () => {
+      const data = crypto.randomBytes(mib * MiB);
+      const t0 = Date.now();
+      let chunks = 0;
+      try {
+        const res = await payer.upload({ data, tags: TAGS, onProgress: () => chunks++ });
+        line("uploaded", `${res.byteCount} bytes in ${chunks} chunks, ${((Date.now() - t0) / 1000).toFixed(1)}s, winc ${res.winc}`);
+        recorded(`chunked ${mib} MiB`, res, data);
+      } catch (err) {
+        line("chunks sent", `${chunks} in ${((Date.now() - t0) / 1000).toFixed(1)}s, then ${err.name}: ${err.uploadStatus ?? err.status ?? ""}`);
+        if (err instanceof TurboChunkedUploadError && err.uploadStatus === "INVALID") {
+          throw new Error(
+            `the testnet service finalized the ${mib} MiB item as INVALID (upload ${err.uploadId}). It does this to every ` +
+              "item over 10,485,760 bytes, through turbo-sdk too: a service limit, not this client. Not fetched back.",
+          );
+        }
+        throw err;
+      }
+    });
+  }
+
   /* ---------------------------- fetch back ---------------------------- */
 
   await step("fetch every upload back and compare", async () => {
     for (const u of uploads) {
-      const url = `${GATEWAY}/raw/${u.id}`;
-      let res;
       const t0 = Date.now();
-      for (let i = 0; i < 60; i++) {
-        res = await fetch(url).catch((e) => ({ ok: false, status: e.message }));
-        if (res.ok) break;
-        await new Promise((r) => setTimeout(r, 10_000));
-      }
-      if (!res.ok) {
-        u.compared = `not served (last ${res.status})`;
-        throw new Error(`${u.label} ${u.id} was not served within 10 minutes`);
-      }
-      const got = Buffer.from(await res.arrayBuffer());
-      u.compared = got.equals(u.data) ? "byte-identical" : `DIFFERENT (${got.length} bytes back)`;
-      line(u.label, `${url} -> ${res.status}, ${u.compared}, after ${Math.round((Date.now() - t0) / 1000)}s`);
-      expect(got.equals(u.data), `${u.label} came back byte-identical`);
+      const back = await fetchBack(u.id, u.data);
+      u.compared = back.equal ? "byte-identical" : `NOT CONFIRMED (${back.error})`;
+      line(u.label, `${GATEWAY}/raw/${u.id} -> ${u.compared}, ${back.reads} ranged reads, ${back.waits} egress waits, ${Math.round((Date.now() - t0) / 1000)}s`);
+      expect(back.equal, `${u.label} came back byte-identical`);
     }
   });
 

@@ -16,11 +16,15 @@ const { request, resolveRetryConfig, DEFAULT_TIMEOUT_MS } = require("./http.js")
 const { PRODUCTION, TESTNET } = require("./endpoints.js");
 const { normalizeSigner, signWithWallet } = require("./signer.js");
 const payment = require("./payment.js");
+const chunked = require("./chunked.js");
 const {
   TurboConfigError,
   TurboValidationError,
   TurboVerificationError,
 } = require("./errors.js");
+
+/** Options every upload call takes on top of its own. */
+const TRANSFER_OPTIONS = ["signal", "timeoutMs", "paidBy", "chunking", "chunkSize", "chunkConcurrency", "onProgress"];
 
 /** Strip one trailing slash so `${url}/v1/tx` never doubles up. */
 const trimUrl = (u) => String(u).replace(/\/+$/, "");
@@ -84,6 +88,18 @@ function checkPaidBy(paidBy) {
     );
   }
   return paidBy;
+}
+
+/** A stream read twice must give the same bytes twice: the signature covers the first read. */
+function assertSameStream(first, second) {
+  const same = second && second.length === first.length &&
+    second.digest.length === first.digest.length && second.digest.every((b, i) => b === first.digest[i]);
+  if (!same) {
+    throw new TurboValidationError(
+      "streamFactory produced different bytes the second time it was called. The item was signed over the " +
+        "first read, so it is not uploaded: nothing is finalized and nothing is charged.",
+    );
+  }
 }
 
 /** The options every constructor accepts. `signer` is last so the error message's list keeps its old prefix. */
@@ -278,20 +294,16 @@ class TurboUploadCore {
    * an id you did not produce.
    */
   async upload(options = {}) {
-    assertKnownOptions(
-      options,
-      ["data", "tags", "target", "anchor", "signal", "timeoutMs", "paidBy"],
-      "upload()",
-      TurboValidationError,
-    );
-    const { data, tags, target, anchor, signal, timeoutMs, paidBy } = options;
+    assertKnownOptions(options, [...SIGN_OPTIONS, ...TRANSFER_OPTIONS], "upload()", TurboValidationError);
+    const { data, tags, target, anchor, ...transfer } = options;
     // Checked before signing, so a wallet is never asked to sign an item that
     // is then refused for a malformed option.
-    checkPaidBy(paidBy);
+    checkPaidBy(transfer.paidBy);
+    chunked.chunkingOptions(transfer);
     const item = this._signsSync
       ? this.sign({ data, tags, target, anchor })
       : await this.signAsync({ data, tags, target, anchor });
-    return this.uploadSigned(item, { signal, timeoutMs, paidBy });
+    return this.uploadSigned(item, transfer);
   }
 
   /**
@@ -306,9 +318,10 @@ class TurboUploadCore {
    * @param {{signal?: AbortSignal, timeoutMs?: number, paidBy?: string}} [options]
    */
   async uploadSigned(item, options = {}) {
-    assertKnownOptions(options, ["signal", "timeoutMs", "paidBy"], "uploadSigned()", TurboValidationError);
+    assertKnownOptions(options, TRANSFER_OPTIONS, "uploadSigned()", TurboValidationError);
     const { signal, timeoutMs } = options;
     const paidBy = checkPaidBy(options.paidBy);
+    const chunking = chunked.chunkingOptions(options);
     const raw =
       item instanceof Uint8Array || ArrayBuffer.isView(item)
         ? item
@@ -335,6 +348,27 @@ class TurboUploadCore {
     }
 
     const expectedId = toBase64Url(this._platform.hashes.sha256(parsed.rawSignature));
+    const owner = toBase64Url(this._platform.hashes.sha256(parsed.rawOwner));
+    const transfer = { expectedId, owner, paidBy, signal, timeoutMs, ...chunking };
+
+    if (chunked.shouldChunk(binary.length, chunking, this._singleItemLimit)) {
+      return this.#chunkedResult(binary, binary.length, transfer);
+    }
+    try {
+      return await this.#postSingle(binary, transfer);
+    } catch (err) {
+      // An item over the service's single-item limit is refused with a 400
+      // that states the limit. Remember it for this client and send the item
+      // in chunks instead, unless the caller turned chunking off.
+      const limit = chunked.singleItemLimitFrom(err);
+      if (limit === undefined || chunking.chunking === "disabled") throw err;
+      this._singleItemLimit = limit;
+      return this.#chunkedResult(binary, binary.length, transfer);
+    }
+  }
+
+  /** One POST to /v1/tx, the way every version of this package has sent an item. */
+  async #postSingle(binary, { expectedId, owner, paidBy, signal, timeoutMs, onProgress }) {
     const endpoint = `${this.uploadUrl}/v1/tx`;
     const headers = {
       "content-type": "application/octet-stream",
@@ -347,7 +381,10 @@ class TurboUploadCore {
       body: binary,
       headers,
       signal,
-      timeoutMs,
+      // Sized from the byte count, so a large item on a slow link is not cut
+      // off by a timeout meant for a small one. Unchanged for anything under
+      // 7.5 MiB at the default 60 s.
+      timeoutMs: chunked.timeoutFor(binary.length, timeoutMs ?? this.timeoutMs),
     });
 
     const body = res.body && typeof res.body === "object" ? res.body : {};
@@ -358,14 +395,105 @@ class TurboUploadCore {
         { expectedId, receivedId: body.id, endpoint },
       );
     }
+    if (onProgress) onProgress({ processedBytes: binary.length, totalBytes: binary.length });
+    return { ...body, id: expectedId, owner, byteCount: binary.length, winc: body.winc };
+  }
 
-    return {
-      ...body,
-      id: expectedId,
-      owner: toBase64Url(this._platform.hashes.sha256(parsed.rawOwner)),
-      byteCount: binary.length,
-      winc: body.winc,
+  /** A chunked upload, returned in the same shape as a single POST. */
+  async #chunkedResult(source, byteCount, { expectedId, owner, paidBy, signal, timeoutMs, chunkSize, chunkConcurrency, onProgress, beforeFinalize }) {
+    const receipt = await chunked.uploadChunked(this, {
+      source, byteCount, expectedId, paidBy, signal, timeoutMs, chunkSize, chunkConcurrency, onProgress, beforeFinalize,
+    });
+    return { ...receipt, id: expectedId, owner, byteCount, winc: receipt.winc };
+  }
+
+  /**
+   * Sign and upload data read from a stream, without holding it in memory.
+   *
+   * `streamFactory` is called TWICE and must give the same bytes both times:
+   * once to hash the data for the signature, once to send it. A Node stream,
+   * a web ReadableStream or any async iterable of bytes works. The second
+   * pass is hashed too, and if it differs from the first the upload is
+   * abandoned before it is finalized, so no item with a bad signature is paid
+   * for.
+   *
+   * Items over two chunks go chunked; smaller ones are read into memory and
+   * sent in one POST, as upload() does.
+   */
+  async uploadStream(options = {}) {
+    assertKnownOptions(options, ["streamFactory", "size", "tags", "target", "anchor", ...TRANSFER_OPTIONS], "uploadStream()", TurboValidationError);
+    const { streamFactory, size, tags, target, anchor, signal, timeoutMs } = options;
+    if (typeof streamFactory !== "function") {
+      throw new TurboValidationError("`streamFactory` must be a function that returns a new stream of the data each time it is called.");
+    }
+    if (!Number.isSafeInteger(size) || size < 0) {
+      throw new TurboValidationError(`\`size\` must be the data's length in bytes, got ${JSON.stringify(size)}.`);
+    }
+    const paidBy = checkPaidBy(options.paidBy);
+    const chunking = chunked.chunkingOptions(options);
+    const p = this._platform;
+
+    // The header carries no data, so it is small; the data follows it as is.
+    const header = p.createDataItem({ tags, target, anchor, owner: this.owner, signatureType: this.signatureType });
+    const fields = core.parseDataItem(header);
+
+    const hashData = async (source, onPiece) => {
+      const h = p.hashes.createSha384();
+      let n = 0;
+      for await (const piece of chunked.iterate(source)) {
+        if (!(piece instanceof Uint8Array)) throw new TurboValidationError("The stream produced something other than bytes.");
+        h.update(piece);
+        n += piece.length;
+        if (onPiece) onPiece(piece);
+      }
+      return { digest: toBytes(h.digest()), length: n };
     };
+
+    const first = await hashData(streamFactory());
+    if (first.length !== size) {
+      throw new TurboValidationError(`\`size\` is ${size}, but the stream produced ${first.length} bytes.`);
+    }
+    const signatureData = core.deepHash(
+      core.signatureDataChunks({ ...fields, data: { byteLength: size, sha384: first.digest } }),
+      p.hashes,
+    );
+    const signature = this._signsSync
+      ? p.signSignatureData(this, signatureData)
+      : await signWithWallet(this._walletSigner, signatureData, p.verifyEd25519Raw);
+    header.set(signature, 2);
+    const expectedId = toBase64Url(p.hashes.sha256(signature));
+    const owner = toBase64Url(p.hashes.sha256(fields.rawOwner));
+    const byteCount = header.length + size;
+
+    if (!chunked.shouldChunk(byteCount, chunking, this._singleItemLimit)) {
+      const parts = [header];
+      const second = await hashData(streamFactory(), (piece) => parts.push(Uint8Array.from(piece)));
+      assertSameStream(first, second);
+      const binary = new Uint8Array(byteCount);
+      let pos = 0;
+      for (const part of parts) {
+        binary.set(part, pos);
+        pos += part.length;
+      }
+      return this.uploadSigned(p.output(binary), { paidBy, signal, timeoutMs, ...chunking, chunking: "disabled" });
+    }
+
+    // The second read is hashed as it is sent. It is pulled chunk by chunk as
+    // the upload has room, so no more than `chunkConcurrency` chunks are held.
+    const second = { hash: p.hashes.createSha384(), length: 0 };
+    async function* itemBytes() {
+      yield header;
+      for await (const piece of chunked.iterate(streamFactory())) {
+        if (!(piece instanceof Uint8Array)) throw new TurboValidationError("The stream produced something other than bytes.");
+        second.hash.update(piece);
+        second.length += piece.length;
+        yield piece;
+      }
+    }
+    return this.#chunkedResult(itemBytes(), byteCount, {
+      expectedId, owner, paidBy, signal, timeoutMs, ...chunking,
+      beforeFinalize: () => assertSameStream(first, { length: second.length, digest: toBytes(second.hash.digest()) }),
+    });
   }
 
   /**

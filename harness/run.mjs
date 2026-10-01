@@ -21,7 +21,8 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import * as esbuild from "esbuild";
 import { JSDOM } from "jsdom";
-import { deterministicBytes, DEVNET_HOSTS } from "./data.mjs";
+import { deterministicBytes } from "./data.mjs";
+import { fetchBack as fetchBackItem } from "./fetchback.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -92,6 +93,10 @@ function devnetParams() {
     spenderSeedHex: crypto.randomBytes(32).toString("hex"),
     paidDataSeed: `paid-${run}`,
     paidBytes: 5 * 1024 * 1024 + 256 * 1024,
+    chunkDataSeed: `chunk-${run}`,
+    streamDataSeed: `stream-${run}`,
+    spender2SeedHex: crypto.randomBytes(32).toString("hex"),
+    largeMiB: [],
     run,
   };
 }
@@ -115,6 +120,11 @@ for (const name of wanted) {
   report.browsers[name] = { version: browser.version(), ...result, pageErrors: consoleErrors };
   if (DEVNET) {
     const params = devnetParams();
+    // The large chunked uploads run from one browser: each is hundreds of MiB
+    // of upload for an outcome devnet decides the same way whatever sends it.
+    if (name === (process.env.HARNESS_LARGE_BROWSER || "chromium")) {
+      params.largeMiB = (process.env.HARNESS_LARGE_MIB || "50,200").split(",").filter(Boolean).map(Number);
+    }
     report.devnet[name] = await page.evaluate((p) => globalThis.harness.devnet(p), params);
   }
   await browser.close();
@@ -135,6 +145,11 @@ server.close();
 
 /* ------------------------------- devnet ------------------------------ */
 
+// Written before the fetch-back pass, so a crash there loses nothing.
+fs.mkdirSync(path.join(here, "results"), { recursive: true });
+const resultFile = path.join(here, "results", `run-${Date.now()}.json`);
+fs.writeFileSync(resultFile, JSON.stringify(report, null, 2));
+
 if (DEVNET) {
   for (const [name, r] of Object.entries(report.devnet)) {
     for (const u of r.uploads) {
@@ -144,20 +159,7 @@ if (DEVNET) {
 }
 
 async function fetchBack(u) {
-  const url = `https://ar-io.dev/raw/${u.id}`;
-  if (!DEVNET_HOSTS.includes(new URL(url).hostname)) throw new Error("refused");
-  const want = deterministicBytes(u.seed, u.bytes);
-  const t0 = Date.now();
-  for (let i = 0; i < 60; i++) {
-    const res = await fetch(url).catch((e) => ({ ok: false, status: e.message }));
-    if (res.ok) {
-      const got = new Uint8Array(await res.arrayBuffer());
-      const equal = got.length === want.length && Buffer.compare(Buffer.from(got), Buffer.from(want)) === 0;
-      return { url, status: res.status, bytes: got.length, byteEqual: equal, afterSeconds: Math.round((Date.now() - t0) / 1000) };
-    }
-    await new Promise((r) => setTimeout(r, 10_000));
-  }
-  return { url, byteEqual: false, error: "not served within 10 minutes" };
+  return fetchBackItem(u.id, deterministicBytes(u.seed, u.bytes), { log: (m) => console.error(m) });
 }
 
 console.log(JSON.stringify(report, null, 2));
@@ -167,7 +169,7 @@ const failed = [
   ...wanted.filter((n) => !corpusOk(report.browsers[n])).map((n) => `corpus in ${n}`),
   ...(corpusOk(report.jsdom) ? [] : ["corpus in jsdom"]),
   ...(DEVNET ? Object.entries(report.devnet).flatMap(([n, r]) => [
-    ...r.log.filter((s) => !s.ok && !s.expectError).map((s) => `${n}: ${s.step}`),
+    ...r.log.filter((s) => !s.ok).map((s) => `${n}: ${s.step}`),
     ...r.uploads.filter((u) => !u.fetchedBack?.byteEqual).map((u) => `${n}: fetch back ${u.label}`),
   ]) : []),
 ];

@@ -124,7 +124,7 @@ export interface SignOptions {
   anchor?: string | Buffer | Uint8Array;
 }
 
-export interface UploadOptions extends SignOptions {
+export interface UploadOptions extends SignOptions, ChunkingOptions {
   signal?: AbortSignal;
   /** Overrides the client's timeoutMs for this call. */
   timeoutMs?: number;
@@ -136,10 +136,36 @@ export interface UploadOptions extends SignOptions {
   paidBy?: string;
 }
 
-export interface UploadSignedOptions {
+export interface UploadSignedOptions extends ChunkingOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
   /** ONE paying address, as in UploadOptions. */
+  paidBy?: string;
+}
+
+/** How an upload is sent: "auto" chunks items over two chunks; "force" always; "disabled" never. */
+export type ChunkingMode = "auto" | "force" | "disabled";
+
+export interface ChunkingOptions {
+  chunking?: ChunkingMode;
+  /** Bytes per chunk, 5 MiB (the default) to 500 MiB. */
+  chunkSize?: number;
+  /** Chunks in flight at once, default 5. Also bounds the memory a stream upload holds. */
+  chunkConcurrency?: number;
+  /** Called after each chunk lands, and once for a single POST. */
+  onProgress?: (progress: { processedBytes: number; totalBytes: number; uploadId?: string }) => void;
+}
+
+export interface UploadStreamOptions extends ChunkingOptions {
+  /** Called TWICE: once to hash the data, once to send it. Must give the same bytes both times. */
+  streamFactory: () => AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>;
+  /** The data's length in bytes. */
+  size: number;
+  tags?: Tag[];
+  target?: string | Uint8Array;
+  anchor?: string | Uint8Array;
+  signal?: AbortSignal;
+  timeoutMs?: number;
   paidBy?: string;
 }
 
@@ -249,6 +275,8 @@ export declare class TurboUpload {
   signAsync(options: SignOptions): Promise<SignedDataItem>;
   /** The byte length of the signed item these options would produce. Price this, not the payload. */
   getDataItemSize(options: DataItemSizeOptions): number;
+  /** Sign and upload data from a stream, chunked when large, without holding the data in memory. */
+  uploadStream(options: UploadStreamOptions): Promise<UploadResult>;
   /** Sign and upload. Throws if the service returns an id we did not produce. */
   upload(options: UploadOptions): Promise<UploadResult>;
   /**
@@ -586,4 +614,17 @@ export declare class TurboVerificationError extends TurboError {
  */
 export declare class TurboSignerError extends TurboError {
   constructor(message: string, options?: { cause?: unknown });
+}
+
+/**
+ * A chunked upload did not finalize: the service reported INVALID (or another
+ * failed state), or the wait ran out. UNDERFUNDED is a TurboPaymentError
+ * instead. The testnet service finalizes every item over 10,485,760 bytes as
+ * INVALID.
+ */
+export declare class TurboChunkedUploadError extends TurboError {
+  constructor(message: string, init?: { uploadId?: string; uploadStatus?: string; endpoint?: string; cause?: unknown });
+  readonly uploadId?: string;
+  readonly uploadStatus?: string;
+  readonly endpoint?: string;
 }
