@@ -8,8 +8,8 @@
  * rule in conformance/type4.js; the seed is stored, nothing else.
  *
  * The corpus lives in conformance/ and does not ship, to keep the tarball
- * small. Run from an installed package, these tests skip and say so; run from
- * a checkout, they run on every Node version CI tests.
+ * small, so neither does this file (package.json `files` excludes it). Run
+ * from a checkout, it runs on every Node version CI tests.
  */
 const test = require("node:test");
 const assert = require("node:assert/strict");

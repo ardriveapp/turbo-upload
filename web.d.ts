@@ -13,14 +13,9 @@ export interface Tag {
 }
 
 /**
- * A wallet-style signer: the shape of a Solana wallet adapter. Pass the adapter
- * itself; its other properties are ignored.
- *
- * `signMessage` is called once per item with the 96 ASCII bytes of the hex of
- * the item's deep hash, and must sign exactly those bytes. The signature is
- * verified before it is used, with `verify` when given, otherwise WebCrypto's
- * Ed25519. A runtime with neither (jsdom, React Native, an older browser)
- * needs `verify`: a wrapper over @noble/ed25519's `verify` is enough.
+ * A wallet-style signer: a Solana wallet adapter works as is. `signMessage` is
+ * called once per item with the hex of its deep hash, and the signature is
+ * verified with `verify`, or WebCrypto Ed25519 where there is no `verify`.
  */
 export interface SolanaWalletSigner {
   /** 32 bytes, a base58 string, or an object with toBytes() (web3.js) or toBuffer(). */
@@ -228,7 +223,6 @@ export declare class TurboUpload {
  * Payments                                                            *
  * ------------------------------------------------------------------ */
 
-/** An integer amount: a number, a bigint, or a string of digits. */
 export type IntegerAmount = number | bigint | string;
 
 export interface CallOptions {
@@ -237,30 +231,25 @@ export interface CallOptions {
 }
 
 export interface WincForToken {
-  /** What the amount buys, in winc, after fees. */
   winc: string;
   fees: unknown[];
-  /** The amount priced, in base units (lamports for Solana). */
   actualTokenAmount: string;
   equivalentWincTokenAmount: string;
 }
 
 export interface PaymentInfo {
   version?: string;
-  /** Funding address per token. */
   addresses?: Record<string, string>;
   [key: string]: unknown;
 }
 
 export interface FreeQuota {
-  /** Free-tier bytes left for this address as SIGNER. null when the service reports no limit. */
   bytesRemaining: number | null;
   address: string;
 }
 
 export interface FundTransactionResult {
   id: string;
-  /** "confirmed": credited. "pending": not seen yet, submit again later. "failed": not creditable. */
   status: "confirmed" | "pending" | "failed";
   quantity?: string;
   owner?: string;
@@ -272,10 +261,8 @@ export interface FundTransactionResult {
 }
 
 export interface ShareCreditsOptions extends CallOptions {
-  /** The address that may spend the credits, uploading with `paidBy: client.address`. */
   approvedAddress: string;
   approvedWincAmount: IntegerAmount;
-  /** The approval expires after this many seconds, and the unused part returns. */
   expiresBySeconds?: number;
 }
 
@@ -290,11 +277,8 @@ export interface CreditShareApproval {
 }
 
 export interface CheckoutSessionOptions extends CallOptions {
-  /** In the currency's smallest unit: cents for "usd", so 1000 is $10.00. */
   amount: IntegerAmount;
-  /** Default "usd". */
   currency?: string;
-  /** Who is credited. Default: this client's address. */
   owner?: string;
   uiMode?: "hosted" | "embedded";
   promoCodes?: string[];
@@ -307,7 +291,6 @@ export interface CheckoutSession {
   winc: string;
   adjustments: unknown[];
   fees: unknown[];
-  /** Open this to pay. */
   url?: string;
   id: string;
   client_secret?: string;

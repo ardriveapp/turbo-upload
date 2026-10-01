@@ -29,6 +29,14 @@ through a fetch that refuses any host but the testnet upload, payment and
 gateway hosts. Each upload is fetched back from `https://ar-io.dev/raw/<id>`
 and compared byte for byte with what was sent.
 
+**The gateway meters reads.** `ar-io.dev` gives each IP an egress allowance
+of about 100 MB that refills at about 20 KB/s (its `/ar-io/info`,
+`rateLimiter.dataEgress`), and past it answers 402 with an x402 payment offer.
+The fetch-back reads in 1 MiB ranges and waits out a 402 rather than paying
+or failing, so a run that uploads tens of MiB can take an hour to confirm.
+`node fetchback.mjs results/run-<n>.json` re-checks a run's uploads later.
+An item larger than the allowance cannot be read back this way at all.
+
 `TURBO_PAYER_KEY` is a `solana-keygen` JSON file whose address holds testnet
 Turbo credits. It is read, never printed. The flow is not run in CI: a key in
 a workflow input lands in a public run's event payload.

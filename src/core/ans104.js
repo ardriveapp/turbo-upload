@@ -148,7 +148,7 @@ function readVarLong(buf, state) {
  * UTF-8, so this only matters for lone surrogates, which JS strings can hold
  * and most other languages' strings cannot. The declared length is the
  * standard UTF-8 length (3 either way), so the varint framing never desyncs:
- * the item stays structurally valid and verifiable, it just gets a DIFFERENT ID
+ * the item stays structurally valid and verifiable, it gets a DIFFERENT ID
  * than a strict-UTF-8 implementation would produce for the same input.
  *
  * Vectors `lone-surrogate-tag-short` / `lone-surrogate-tag-long` pin both sides.

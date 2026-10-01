@@ -39,8 +39,8 @@ const DEFAULT_RETRY = Object.freeze({
  * Merge a PARTIAL retry config over the defaults.
  *
  * turbo-sdk's retry config is all-or-nothing: supplying it means supplying
- * every field, including a `retryCondition` you now own. Overriding just
- * `retries` should not mean rewriting the backoff policy.
+ * every field, including a `retryCondition` you now own. Overriding only
+ * `retries` does not mean rewriting the backoff policy here.
  */
 function resolveRetryConfig(retry) {
   if (retry === false || retry === null) return { ...DEFAULT_RETRY, retries: 0 };

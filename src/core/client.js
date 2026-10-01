@@ -517,7 +517,7 @@ class TurboUploadCore {
    *
    * A wallet the payment service has never seen returns 404 "User Not Found".
    * That is a zero balance, not an error, so it is normalised to zeros here:
-   * a brand-new wallet asking its balance should not throw.
+   * a brand-new wallet asking its balance gets zeros.
    */
   async getBalance(options = {}) {
     assertKnownOptions(options, ["address", "signal", "timeoutMs"], "getBalance()", TurboValidationError);
@@ -605,13 +605,9 @@ class TurboUploadCore {
   }
 
   /**
-   * How many free-tier bytes an address has left: GET /v1/account/free.
-   *
-   * The free tier is a QUOTA that belongs to the address that SIGNS an item,
-   * not to the one that pays for it with `paidBy`, and it is service policy:
-   * read it, never assume it. `bytesRemaining` is null when the service
-   * reports no limit for the address. There is also a per-IP quota, which no
-   * endpoint reports.
+   * Free-tier bytes an address has left as SIGNER: GET /v1/account/free.
+   * Service policy, so read it rather than assume it. `bytesRemaining` is null
+   * when the service reports no limit. The per-IP quota has no endpoint.
    *
    * @returns {Promise<{bytesRemaining: number|null, address: string}>}
    */
@@ -629,18 +625,10 @@ class TurboUploadCore {
   }
 
   /**
-   * Tell the payment service about a top-up transaction you have already sent
-   * to the funding address: POST /v1/account/balance/{token}.
-   *
-   * This package does not build or send the transfer: your wallet or RPC
-   * library does, to `getFundingAddress()`, optionally with the memo
-   * `turboCreditDestinationAddress=<address>` to credit another address. Wait
-   * until the transaction is `finalized` before submitting it.
-   *
-   * The answer is `status` "confirmed" (credited), "pending" (the service has
-   * not seen it yet and keeps checking: submit again later) or "failed".
-   * Submitting the same id again is safe: the service answers that it is
-   * already credited and credits nothing twice.
+   * Report a top-up already sent to getFundingAddress() and finalized:
+   * POST /v1/account/balance/{token}. This package does not send the transfer.
+   * `status` is "confirmed", "pending" (submit again later) or "failed".
+   * Submitting the same id twice credits it once.
    */
   async submitFundTransaction(txId, options = {}) {
     assertKnownOptions(options, ["signal", "timeoutMs"], "submitFundTransaction()", TurboValidationError);
@@ -657,12 +645,9 @@ class TurboUploadCore {
 
   /**
    * Let another address spend up to `approvedWincAmount` of this client's
-   * credits, by uploading an approval data item that this client signs.
-   * The approved address then uploads with `paidBy: client.address`.
-   *
-   * The unused part of an approval returns when it expires
-   * (`expiresBySeconds`). The approval is itself a data item, so a wallet
-   * signer is asked to sign once.
+   * credits, through an approval data item this client signs (a wallet signs
+   * once). That address then uploads with `paidBy: client.address`. The unused
+   * part returns when the approval expires.
    *
    * @returns {Promise<object>} the service's `createdApproval`
    */
@@ -694,12 +679,9 @@ class TurboUploadCore {
   }
 
   /**
-   * A Stripe checkout session that buys credits for `owner` (this client's
-   * address unless given): GET /v1/top-up/checkout-session/{owner}/{currency}/{amount}.
-   *
-   * `amount` is in the currency's smallest unit: cents for "usd", so 1000 is
-   * $10.00. Open `url` to pay. The testnet payment service answers with a
-   * Stripe test-mode session, which a test card completes.
+   * A Stripe checkout session buying credits for `owner` (default: this
+   * client): GET /v1/top-up/checkout-session/{owner}/{currency}/{amount}.
+   * `amount` is in cents for "usd". Testnet answers in Stripe test mode.
    */
   async createCheckoutSession(options = {}) {
     assertKnownOptions(

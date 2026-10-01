@@ -16,13 +16,13 @@
  * `gatewayUrl` is the gateway the upload service names as its own, in the
  * `gateway` field of its `/v1/info`. That is deliberate rather than incidental:
  * arweave.net was the value here, and it answered `429` to ten consecutive
- * reads of items this package had just uploaded, while the service's own
+ * reads of items this package had uploaded moments before, while the service's own
  * gateway answered `200` to all ten. A default that rate limits the reader is
  * worse than no default. TESTNET already matched its service this way.
  *
  * Any gateway serving Arweave can return these items by id, and gateways differ
- * in what they have indexed, so a reader that matters should set this rather
- * than inherit it.
+ * in what they have indexed, so a reader that matters sets this rather
+ * than inheriting it.
  */
 const PRODUCTION = Object.freeze({
   name: "production",

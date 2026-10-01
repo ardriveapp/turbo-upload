@@ -50,6 +50,7 @@
     "src/",
     "examples/",
     "test/",
+    "!test/type4.test.js",
     "vectors/",
     "AGENTS.md",
     "README.md",
