@@ -198,6 +198,8 @@ export interface UploadResult {
   owner: string;
   /** Size of the signed item on the wire, in bytes. */
   byteCount: number;
+  /** Set when the item went in chunks: the service's multipart upload id. */
+  uploadId?: string;
   /** Winston credits charged. Absent or "0" for a free-tier upload. */
   winc?: string;
   dataCaches?: string[];
@@ -582,6 +584,8 @@ export declare class TurboHTTPError extends TurboError {
   readonly method: string;
   /** Parsed JSON when the response was JSON, otherwise raw text. */
   readonly body: unknown;
+  /** Set when the request was part of a chunked upload. */
+  readonly uploadId?: string;
 }
 /**
  * The service refused the upload because the wallet cannot pay: HTTP 402.

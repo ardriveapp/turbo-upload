@@ -325,7 +325,7 @@ class TurboUploadCore {
     const raw =
       item instanceof Uint8Array || ArrayBuffer.isView(item)
         ? item
-        : item && (item.binary instanceof Uint8Array)
+        : item && ArrayBuffer.isView(item.binary)
           ? item.binary
           : null;
     if (!raw) {
@@ -440,8 +440,9 @@ class TurboUploadCore {
     const hashData = async (source, onPiece) => {
       const h = p.hashes.createSha384();
       let n = 0;
-      for await (const piece of chunked.iterate(source)) {
-        if (!(piece instanceof Uint8Array)) throw new TurboValidationError("The stream produced something other than bytes.");
+      for await (let piece of chunked.iterate(source)) {
+        if (!ArrayBuffer.isView(piece)) throw new TurboValidationError("The stream produced something other than bytes.");
+        piece = toBytes(piece);
         h.update(piece);
         n += piece.length;
         if (onPiece) onPiece(piece);
@@ -475,7 +476,9 @@ class TurboUploadCore {
         binary.set(part, pos);
         pos += part.length;
       }
-      return this.uploadSigned(p.output(binary), { paidBy, signal, timeoutMs, ...chunking, chunking: "disabled" });
+      // Small enough for one POST; if the service refuses it as too large,
+      // uploadSigned falls back to chunks as it does for any item.
+      return this.uploadSigned(p.output(binary), { paidBy, signal, timeoutMs, ...chunking });
     }
 
     // The second read is hashed as it is sent. It is pulled chunk by chunk as
@@ -483,8 +486,9 @@ class TurboUploadCore {
     const second = { hash: p.hashes.createSha384(), length: 0 };
     async function* itemBytes() {
       yield header;
-      for await (const piece of chunked.iterate(streamFactory())) {
-        if (!(piece instanceof Uint8Array)) throw new TurboValidationError("The stream produced something other than bytes.");
+      for await (let piece of chunked.iterate(streamFactory())) {
+        if (!ArrayBuffer.isView(piece)) throw new TurboValidationError("The stream produced something other than bytes.");
+        piece = toBytes(piece);
         second.hash.update(piece);
         second.length += piece.length;
         yield piece;
@@ -703,7 +707,7 @@ class TurboUploadCore {
     const query = payment.checkoutQuery({ token: this.token, uiMode, promoCodes, successUrl, cancelUrl, returnUrl });
     const res = await this._request(
       this.paymentUrl,
-      `/v1/top-up/checkout-session/${owner}/${currency.toLowerCase()}/${amount}?${query}`,
+      `/v1/top-up/checkout-session/${encodeURIComponent(owner)}/${currency.toLowerCase()}/${amount}?${query}`,
       { signal, timeoutMs },
     );
     return payment.checkoutResult(res.body);

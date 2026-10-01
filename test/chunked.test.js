@@ -176,6 +176,13 @@ test("uploadStream signs a Node stream without holding it, and refuses a stream 
   assert.equal(svc.log.length, 1, "a small stream is one POST");
   assert.equal(r.byteCount, small.length + 116);
 
+  // A stream small enough for one POST still falls back to chunks if the
+  // service refuses that POST as too large.
+  const svcLow = multipartService({ singleLimit: MiB });
+  const mid = crypto.randomBytes(2 * MiB);
+  await client(svcLow).uploadStream({ streamFactory: () => pieces(mid), size: mid.length });
+  assert.ok(svcLow.log.some((l) => l.path.includes("/finalize")), "refused as too large, then sent in chunks");
+
   let calls = 0;
   const changing = () => pieces(calls++ === 0 ? data : crypto.randomBytes(data.length));
   const svc2 = multipartService();
@@ -230,4 +237,33 @@ test("200 MiB through the in-process service, from bytes and from a stream", {
   });
   assert.equal(res2.id, res.id, "the streamed item is byte-identical to the in-memory one");
   console.log(`200 MiB: ${up.parts.size} chunks, both paths, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+});
+
+test("bytes from another realm are bytes: streams and signed items from jsdom or an iframe", async () => {
+  const Foreign = require("node:vm").runInNewContext("Uint8Array");
+  const data = crypto.randomBytes(3000);
+  const svc = multipartService();
+  const c = client(svc);
+  const res = await c.uploadStream({ streamFactory: async function* () { yield new Foreign(data); }, size: data.length });
+  assert.equal(res.id.length, 43);
+  const item = c.sign({ data: "x" });
+  const again = await c.uploadSigned({ binary: new Foreign(item.binary) });
+  assert.equal(again.id, item.idB64Url);
+});
+
+test("a stream that fails mid-upload leaves no chunk request running", async () => {
+  const svc = multipartService();
+  const c = client(svc);
+  let calls = 0;
+  const data = crypto.randomBytes(12 * MiB);
+  const failing = async function* () {
+    if (calls++ === 0) { yield data; return; }
+    yield data.subarray(0, 6 * MiB);
+    throw new Error("disk went away");
+  };
+  await assert.rejects(c.uploadStream({ streamFactory: failing, size: data.length }), /disk went away/);
+  const before = svc.log.length;
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(svc.log.length, before, "nothing was sent after the upload failed");
+  assert.equal(svc.log.some((l) => l.path.includes("/finalize")), false);
 });

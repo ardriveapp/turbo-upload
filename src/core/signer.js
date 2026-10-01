@@ -142,7 +142,9 @@ async function signWithWallet(signer, signatureData, platformVerify) {
   } catch (cause) {
     throw new TurboSignerError(`The signer's signMessage failed: ${cause && cause.message ? cause.message : cause}.${WHY}`, { cause });
   }
-  const signature = signatureFrom(result);
+  // A copy, so a wallet cannot change the bytes after they are checked.
+  const found = signatureFrom(result);
+  const signature = found ? Uint8Array.from(found) : found;
   if (!signature || signature.length !== SIGNATURE_BYTES) {
     throw new TurboSignerError(
       `The signer's signMessage returned ${signature ? `${signature.length} bytes` : typeof result}, ` +
@@ -152,9 +154,11 @@ async function signWithWallet(signer, signatureData, platformVerify) {
 
   let verified;
   try {
+    // The runtime's own Ed25519 first; the signer's `verify` only where the
+    // runtime has none, so a signer cannot vouch for itself when it need not.
     if (platformVerify) verified = platformVerify(signer.publicKey, message, signature);
-    else if (signer.verify) verified = await signer.verify(message, signature, signer.publicKey);
     else verified = await webCryptoVerifyEd25519(signer.publicKey, message, signature);
+    if (verified === undefined && signer.verify) verified = await signer.verify(message, signature, signer.publicKey);
   } catch (cause) {
     throw new TurboSignerError(`Verifying the signer's signature threw: ${cause && cause.message ? cause.message : cause}.`, { cause });
   }

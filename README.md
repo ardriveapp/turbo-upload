@@ -155,11 +155,11 @@ hand; the Next.js and workerd rows follow from the conditions those tools
 document.
 
 **Verifying a wallet's signature in the browser.** The web build checks each
-signature with the signer's `verify(message, signature, publicKey)` when you
-give one, otherwise with WebCrypto's Ed25519 (current Chromium, Firefox and
-Safari have it). A runtime with neither, jsdom or React Native for example,
-needs `verify`: a wrapper over `@noble/ed25519`'s `verify` is enough.
-Without one, signing throws `TurboSignerError` rather than skipping the check.
+signature with WebCrypto's Ed25519 (current Chromium, Firefox and Safari have
+it), and with the signer's `verify(message, signature, publicKey)` only where
+the runtime has none, as in jsdom or React Native. A wrapper over
+`@noble/ed25519`'s `verify` is enough. With neither, signing throws
+`TurboSignerError` rather than skipping the check.
 
 In the web build, `verify()` and `verifyDataItem()` return a promise and check
 type 4 items only.

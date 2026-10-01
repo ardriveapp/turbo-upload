@@ -24,7 +24,8 @@ const {
   TurboValidationError,
   TurboVerificationError,
 } = require("./errors.js");
-const { sleep } = require("./http.js");
+const { sleep, anySignal } = require("./http.js");
+const { toBytes } = require("./bytes.js");
 
 const MiB = 1024 * 1024;
 const MIN_CHUNK_BYTES = 5 * MiB;
@@ -113,10 +114,13 @@ async function* rechunk(source, chunkSize) {
     held -= chunkSize;
     return out;
   };
-  for await (const piece of iterate(source)) {
-    if (!(piece instanceof Uint8Array)) {
+  for await (let piece of iterate(source)) {
+    // ArrayBuffer.isView, not instanceof: bytes from another realm (Jest's
+    // jsdom, an iframe) are bytes too.
+    if (!ArrayBuffer.isView(piece)) {
       throw new TurboValidationError(`The stream produced ${typeof piece}, not bytes. Do not set an encoding on it.`);
     }
+    piece = toBytes(piece);
     if (piece.length === 0) continue;
     parts.push(piece);
     held += piece.length;
@@ -189,7 +193,7 @@ async function uploadChunked(client, { source, byteCount, expectedId, paidBy, si
   // The service may answer with its own chunk size; turbo-sdk follows it, so do we.
   const size = Number.isSafeInteger(init.body.chunkSize) && init.body.chunkSize > 0 ? init.body.chunkSize : chunkSize;
 
-  const chunks = source instanceof Uint8Array
+  const chunks = ArrayBuffer.isView(source)
     ? (function* () {
       for (let off = 0; off < source.length; off += size) yield source.subarray(off, off + size);
     })()
@@ -199,31 +203,45 @@ async function uploadChunked(client, { source, byteCount, expectedId, paidBy, si
   let sent = 0;
   let firstError;
   const inFlight = new Set();
+  // One failure stops the others: an internal abort, composed with the caller's.
+  const stop = new AbortController();
+  const chunkSignal = signal ? anySignal([signal, stop.signal]) : stop.signal;
   const post = async (chunk, at) => {
     await client._request(client.uploadUrl, `${base}/${uploadId}/${at}`, {
       method: "POST",
       body: client._platform.output(chunk),
       headers: { "content-type": "application/octet-stream", ...CHUNKING_HEADER },
-      signal,
+      signal: chunkSignal,
       timeoutMs: timeoutFor(chunk.length, perRequest),
     });
     sent += chunk.length;
-    if (onProgress) onProgress({ processedBytes: sent, totalBytes: byteCount, uploadId });
+    if (onProgress && !firstError) onProgress({ processedBytes: sent, totalBytes: byteCount, uploadId });
   };
 
-  for await (const chunk of chunks) {
-    if (firstError) break;
-    const at = offset;
-    offset += chunk.length;
-    const p = post(chunk, at).catch((err) => {
-      firstError = firstError || err;
-    });
-    inFlight.add(p);
-    p.finally(() => inFlight.delete(p));
-    // Bound memory: at most `chunkConcurrency` chunks held or in flight.
-    if (inFlight.size >= chunkConcurrency) await Promise.race(inFlight);
+  try {
+    for await (const chunk of chunks) {
+      if (firstError) break;
+      const at = offset;
+      offset += chunk.length;
+      if (offset > byteCount) {
+        throw new TurboValidationError(`The item is ${byteCount} bytes, but more were produced for upload ${uploadId}.`);
+      }
+      const p = post(chunk, at).catch((err) => {
+        firstError = firstError || err;
+        stop.abort(err);
+      });
+      inFlight.add(p);
+      p.finally(() => inFlight.delete(p));
+      // Bound memory: wait for room before pulling the next chunk.
+      if (inFlight.size >= chunkConcurrency) await Promise.race(inFlight);
+    }
+  } catch (err) {
+    firstError = firstError || err;
+    stop.abort(err);
+  } finally {
+    // Nothing keeps running after this function settles.
+    await Promise.allSettled(inFlight);
   }
-  await Promise.all(inFlight);
   if (firstError) {
     firstError.uploadId = uploadId;
     throw firstError;

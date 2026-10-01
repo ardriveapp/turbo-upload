@@ -15,7 +15,7 @@ export interface Tag {
 /**
  * A wallet-style signer: a Solana wallet adapter works as is. `signMessage` is
  * called once per item with the hex of its deep hash, and the signature is
- * verified with `verify`, or WebCrypto Ed25519 where there is no `verify`.
+ * verified with WebCrypto Ed25519, or with `verify` where the runtime has none.
  */
 export interface SolanaWalletSigner {
   /** 32 bytes, a base58 string, or an object with toBytes() (web3.js) or toBuffer(). */
@@ -131,6 +131,8 @@ export interface UploadResult {
   owner: string;
   /** Size of the signed item on the wire, in bytes. */
   byteCount: number;
+  /** Set when the item went in chunks: the service's multipart upload id. */
+  uploadId?: string;
   /** Winston credits charged. "0" for a free upload. */
   winc?: string;
   [key: string]: unknown;
@@ -391,6 +393,8 @@ export declare class TurboHTTPError extends TurboError {
   readonly endpoint: string;
   readonly method: string;
   readonly body: unknown;
+  /** Set when the request was part of a chunked upload. */
+  readonly uploadId?: string;
 }
 /** HTTP 402: the payer cannot pay. Retrying never helps. */
 export declare class TurboPaymentError extends TurboHTTPError {}
