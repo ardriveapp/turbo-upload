@@ -1,6 +1,6 @@
 // AVSCTap.writeString has TWO encoders: a hand-rolled loop for len<=64, Buffer.write for len>64.
 // Do they agree on a lone surrogate?
-const ARB = "/tmp/claude-1000/-mnt-c-source-sanning-io-aom/53472aba-ef33-4ece-94cd-bbb80849d7f8/scratchpad/minimal/node_modules/@dha-team/arbundles/build/node/cjs/src/";
+const ARB = require("./arbundles.js").ARB_ROOT + "/";
 const { serializeTags, deserializeTags } = require(ARB + "tags.js");
 
 const lone = "\ud800";                       // unpaired high surrogate

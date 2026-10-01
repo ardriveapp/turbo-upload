@@ -354,13 +354,13 @@ export declare class TurboValidationError extends TurboError {
 }
 /** No HTTP response at all: DNS, TLS, connection reset. */
 export declare class TurboNetworkError extends TurboError {
-  constructor(init: { endpoint: string; method: string; cause?: unknown });
+  constructor(message: string, init?: { endpoint?: string; method?: string; cause?: unknown });
   readonly endpoint?: string;
   readonly method?: string;
 }
 /** The request exceeded timeoutMs, or the caller's signal aborted it. */
 export declare class TurboTimeoutError extends TurboError {
-  constructor(init: { endpoint: string; method: string; timeoutMs: number; cause?: unknown });
+  constructor(message: string, init?: { endpoint?: string; method?: string; timeoutMs?: number; cause?: unknown });
   readonly endpoint?: string;
   readonly method?: string;
   readonly timeoutMs?: number;
@@ -399,7 +399,7 @@ export declare class TurboPaymentError extends TurboHTTPError {}
  * that were signed.
  */
 export declare class TurboVerificationError extends TurboError {
-  constructor(init: { expectedId: string; receivedId: string });
+  constructor(message: string, init?: { expectedId?: string; receivedId?: string; endpoint?: string });
   readonly expectedId?: string;
   readonly receivedId?: string;
   readonly endpoint?: string;

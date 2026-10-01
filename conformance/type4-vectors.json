@@ -1,0 +1,1156 @@
+{
+  "format": "ans104-type4-conformance-vectors",
+  "version": 1,
+  "generated_by": "@ardrive/turbo-sdk@2.1.0",
+  "signature_type": {
+    "id": 4,
+    "name": "solana",
+    "algorithm": "Ed25519 (RFC 8032), deterministic",
+    "signature_length": 64,
+    "owner_length": 32,
+    "signed_message": "the 96 ASCII bytes of the lowercase hex of the 48-byte deep hash, NOT the deep hash itself"
+  },
+  "seed_rule": "seed = SHA-256(UTF-8(\"turbo-upload type 4 corpus/\" + name)); public key from the seed by tweetnacl",
+  "notes": [
+    "Ed25519 is deterministic, so every byte under `expected`, signature and id included, must match exactly.",
+    "No secret key is stored: each one is derived from its case name by the seed rule."
+  ],
+  "vectors": [
+    {
+      "name": "empty-data-empty-tags",
+      "description": "The degenerate item: no data, no tags, no target, no anchor. Pins the 1044-byte floor of the format and proves absent optional fields still contribute a zero-length blob to the deep hash.",
+      "seed_hex": "c5eeb41b755301d8d35c62d7c18818f9025ab3edd766bc5955070449962b61a2",
+      "public_key_base58": "2w8gzZNQXQtMMgvRYtd8WTdfjpidnQQDwagcRuWuh64J",
+      "input": {
+        "data_hex": "",
+        "tags": [],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "0400b624f214ac6fad64bf6a4564d29f8838e2f472eb51e3da623d802551c18aedd70e760aeac59d47afda3d55f8c1c2cab85daafd231bfaa4937b86c50c4aae33061cb9bec4afa5e02eb690706a1152d0599cd036398b93f1287da6657a424ce113000000000000000000000000000000000000",
+        "signed_item_length": 116,
+        "signature_hex": "b624f214ac6fad64bf6a4564d29f8838e2f472eb51e3da623d802551c18aedd70e760aeac59d47afda3d55f8c1c2cab85daafd231bfaa4937b86c50c4aae3306",
+        "id_b64url": "Ln60nG7FtVyou3C9AGMbLATyZ82txFXpY5ACyk9tt14"
+      }
+    },
+    {
+      "name": "ascii-data-no-tags",
+      "description": "Small ASCII payload, no tags. The simplest non-trivial item; the tag region is 16 bytes of zeroed counters and nothing else.",
+      "seed_hex": "9149ae5bf8285e361dfe833ec20c1a9f31676cb621c5028cdc07c19f1740f62e",
+      "public_key_base58": "F9CcDkoXzYgggqMqkp2xck6PSKhEGaj4U8ag1EG4HCsk",
+      "input": {
+        "data_hex": "68656c6c6f20776f726c64",
+        "tags": [],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "0400ee6c5ac1fb3f56f088f6081e636c84bfb3ecbcf45d0b8bdb4ea24eb5642e60145e331ec1f990bbe2580f8ac41ced7d801cb46cc3d14e56130721c73140052e09d21d63462dc3f69cd74e68d4086ff72a779827baccb21b4921f4bcecc7a1805b00000000000000000000000000000000000068656c6c6f20776f726c64",
+        "signed_item_length": 127,
+        "signature_hex": "ee6c5ac1fb3f56f088f6081e636c84bfb3ecbcf45d0b8bdb4ea24eb5642e60145e331ec1f990bbe2580f8ac41ced7d801cb46cc3d14e56130721c73140052e09",
+        "id_b64url": "kjkXLm0mL_Yam3c8l8o4lAD2JcEQa7Ui67mrpb2SwUY"
+      }
+    },
+    {
+      "name": "single-byte-data",
+      "description": "One data byte. Catches implementations that special-case or off-by-one the data offset.",
+      "seed_hex": "68a078e9db98a624fdae0738924583efb73e270e0d1f0ed2db4eae53e74ca838",
+      "public_key_base58": "AMrv4tkwbH3ArN8qG4M9EM2zgNdqSrp1p8xnwvKSsWfd",
+      "input": {
+        "data_hex": "00",
+        "tags": [],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "0400f578c685d08ce9954e25154e45f9284b4fd3c1124a80c024454130f370ee73eca5a1017db82cbe115adbb96c1c99b7a22903dc012659f0540553cbb3e055610e8b113ccef26ca331ee5eeaa2e6873c4c615e83b6e80156c4ad33bbc69a6e66b400000000000000000000000000000000000000",
+        "signed_item_length": 117,
+        "signature_hex": "f578c685d08ce9954e25154e45f9284b4fd3c1124a80c024454130f370ee73eca5a1017db82cbe115adbb96c1c99b7a22903dc012659f0540553cbb3e055610e",
+        "id_b64url": "7F14dEuI5_920rg72MoNTKkenMELq8K0dDgpITJ_WdM"
+      }
+    },
+    {
+      "name": "one-tag",
+      "description": "A single Content-Type tag. Pins the minimal Avro tag block: zigzag count, one name/value pair, terminating 0x00.",
+      "seed_hex": "f42564f6465e4d0c1f5cc0361cea465ea739472ed112ec30dd0de73dd1af75b4",
+      "public_key_base58": "4h7WnxjqQ5JvxU3yGGHa7oxwcDiA1cjbBLuVYLPZG3HL",
+      "input": {
+        "data_hex": "7b7d",
+        "tags": [
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "0400e7913506b98c6028d0ae801218ca4478a8f0d5e42edfeb0800ace0339ca87b4f0ef3c5922749037437412a86c715e3dd1e8694482b3f2bd4218497b9aa9db20636d9a87d6d0bbe4b161c8aa7d9024802c85c8bf5f07046771400e76db2f3c0530000010000000000000020000000000000000218436f6e74656e742d54797065206170706c69636174696f6e2f6a736f6e007b7d",
+        "signed_item_length": 150,
+        "signature_hex": "e7913506b98c6028d0ae801218ca4478a8f0d5e42edfeb0800ace0339ca87b4f0ef3c5922749037437412a86c715e3dd1e8694482b3f2bd4218497b9aa9db206",
+        "id_b64url": "QHka9FSRgqtsZUG8CkRPp-6F0l8kiLNcMAkGVY0OL8g"
+      }
+    },
+    {
+      "name": "several-tags",
+      "description": "Five tags in declared order. Tag order is significant and is never sorted or normalised.",
+      "seed_hex": "ca623a0f5dc843c01ef0cfc9b43c64acd94c443212bf2a6a825570c172723b88",
+      "public_key_base58": "47gv5WEkASxb5dVhHiYnacHoGpW5qye6WBVFrzFCZWy8",
+      "input": {
+        "data_hex": "7061796c6f6164",
+        "tags": [
+          {
+            "name": "Content-Type",
+            "value": "text/plain"
+          },
+          {
+            "name": "App-Name",
+            "value": "sanning"
+          },
+          {
+            "name": "App-Version",
+            "value": "0.1.0"
+          },
+          {
+            "name": "Unix-Time",
+            "value": "1756425600"
+          },
+          {
+            "name": "Anchor-Kind",
+            "value": "commitment"
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "04004a72553ce0295f72aa9518a6780e3a1bc4d9e32f2e133d96c193d75a0bae065a77bc46a4949e251bada88f49c3cd04a1dc2a43ee6a3428c06a9c0453b51ade062e49ad856cd681ca357c120d503c095bf3cf40acdc1cac169bdb9444b3d9d9fb0000050000000000000069000000000000000a18436f6e74656e742d5479706514746578742f706c61696e104170702d4e616d650e73616e6e696e67164170702d56657273696f6e0a302e312e3012556e69782d54696d65143137353634323536303016416e63686f722d4b696e6414636f6d6d69746d656e74007061796c6f6164",
+        "signed_item_length": 228,
+        "signature_hex": "4a72553ce0295f72aa9518a6780e3a1bc4d9e32f2e133d96c193d75a0bae065a77bc46a4949e251bada88f49c3cd04a1dc2a43ee6a3428c06a9c0453b51ade06",
+        "id_b64url": "pMBBkN1nwN0uJpLtDh6Psz8H_-gW4ORuqp4ovz7EHTM"
+      }
+    },
+    {
+      "name": "duplicate-tag-names",
+      "description": "The same tag name three times with different values. ANS-104 does not require unique names and no deduplication happens; all three survive in order.",
+      "seed_hex": "ce39b4a37f53c8a99ac55414b2f7682ff4db4c33dd7454440e19f77d71666f63",
+      "public_key_base58": "HitqSe2Fi5bucQkskbQwWvrQD7Mqch6d1JmSZ6PC56Mj",
+      "input": {
+        "data_hex": "6475706573",
+        "tags": [
+          {
+            "name": "Topic",
+            "value": "alpha"
+          },
+          {
+            "name": "Topic",
+            "value": "beta"
+          },
+          {
+            "name": "Topic",
+            "value": "gamma"
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "0400444e0e405e487f9ebbcf792060ee44bd152d1f3037560facef41d564bb67eeade5c5718928de71013e69eab8412556292a6ca0a1751564fe3b6716671e209105f8766a0c460747639bdfe20e2f099810ecde7d8e2159fd3dee00f167bc16beb6000003000000000000002500000000000000060a546f7069630a616c7068610a546f70696308626574610a546f7069630a67616d6d61006475706573",
+        "signed_item_length": 158,
+        "signature_hex": "444e0e405e487f9ebbcf792060ee44bd152d1f3037560facef41d564bb67eeade5c5718928de71013e69eab8412556292a6ca0a1751564fe3b6716671e209105",
+        "id_b64url": "VWMH4UKHfVOWJbOMOUPkaMJqwnsi98qAtGHHk3I1p90"
+      }
+    },
+    {
+      "name": "unicode-tags",
+      "description": "Non-ASCII in both tag names and values: Latin-1 accents, CJK, Cyrillic, and an astral-plane emoji (surrogate pair). The declared varint length is the UTF-8 BYTE length, not the character or UTF-16 code-unit count, this is where naive encoders break.",
+      "seed_hex": "d60461be2ad03ac1cb52bd6d1b82eafd42cd1c6c5756ee7e741b80e8f5f20c10",
+      "public_key_base58": "G7BrniXMcWiNyg11DKyMuP2YGyc598j3ehyU9YoDHvKf",
+      "input": {
+        "data_hex": "756e69636f6465",
+        "tags": [
+          {
+            "name": "Título",
+            "value": "café résumé"
+          },
+          {
+            "name": "名前",
+            "value": "値"
+          },
+          {
+            "name": "Ключ",
+            "value": "значение"
+          },
+          {
+            "name": "emoji",
+            "value": "🎉🚀"
+          },
+          {
+            "name": "🔑",
+            "value": "🗝"
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "040021d592bd701238b693f1d8b3a0191e5bf74dd1151aa4e28414407c30a07a389e2922d4bb4855f01b39b062374c07393625b5fe3588069773a8030eb578eccd05e07510ffadf619f12a56c7ca3c994db8d4d058ee9099803147f451f2a98e476e0000050000000000000057000000000000000a0e54c3ad74756c6f1c636166c3a92072c3a973756dc3a90ce5908de5898d06e580a410d09ad0bbd18ed18720d0b7d0bdd0b0d187d0b5d0bdd0b8d0b50a656d6f6a6910f09f8e89f09f9a8008f09f949108f09f979d00756e69636f6465",
+        "signed_item_length": 210,
+        "signature_hex": "21d592bd701238b693f1d8b3a0191e5bf74dd1151aa4e28414407c30a07a389e2922d4bb4855f01b39b062374c07393625b5fe3588069773a8030eb578eccd05",
+        "id_b64url": "s5ULTfYj63AtMjiTa56llHO8LGgHVKy4OsfRNoyOUSc"
+      }
+    },
+    {
+      "name": "empty-tag-value",
+      "description": "A tag with a non-empty name and an empty value. The value serializes as a zero-length string: varint 0x00 and no bytes.",
+      "seed_hex": "ab6790323d5b91de641a17e69da27da6f81b0c23fbe12e722280feebe8d92c61",
+      "public_key_base58": "EjQLfpWoz8uhMFS2VUDDKb93LFaMCvuNy324Ao1LPiH6",
+      "input": {
+        "data_hex": "78",
+        "tags": [
+          {
+            "name": "Empty-Value",
+            "value": ""
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "0400ca4341bb5abd5680a304ce59edb0e4e1fcbf6c99655cf18d8a51494c597428f36a5124dc511dfabdc5814ee008dbdd10dfa64eddaed2a6e3e6f55b6ae2418e0bcc04b6b2408a0099a10b5cf59b4aa5042e450c923b2037dd05707e93dd7b4909000001000000000000000f000000000000000216456d7074792d56616c7565000078",
+        "signed_item_length": 132,
+        "signature_hex": "ca4341bb5abd5680a304ce59edb0e4e1fcbf6c99655cf18d8a51494c597428f36a5124dc511dfabdc5814ee008dbdd10dfa64eddaed2a6e3e6f55b6ae2418e0b",
+        "id_b64url": "oNK49DMEbSZMG1wazyWH3U4RQbNfmT-iD30Ru4G6APc"
+      }
+    },
+    {
+      "name": "empty-tag-name",
+      "description": "A tag with an EMPTY NAME. arbundles permits this and round-trips it; ANS-104 does not forbid it. A validator that rejects empty names diverges from the de-facto reference.",
+      "seed_hex": "332258f6a58897d401fd62a515fc16555d29ae63b528b4993b3796616faa2c58",
+      "public_key_base58": "7rVbMZsmpTCnFwzqxkaVSzm6yFSLJNg5MEN3wiUGk1kM",
+      "input": {
+        "data_hex": "78",
+        "tags": [
+          {
+            "name": "",
+            "value": "orphan-value"
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "0400641bae71ee97b1de98f4b87125c21fe1dcec3bc1a1f423028ac594238aaf80574121c5107f1c105765c2e181da9a659b127ce48104860ce6c09522d4dfa8610e65d3e91fe41b9900ad4f6cf963f5b8c862faf42ae8654490705aee508191099a0000010000000000000010000000000000000200186f727068616e2d76616c75650078",
+        "signed_item_length": 133,
+        "signature_hex": "641bae71ee97b1de98f4b87125c21fe1dcec3bc1a1f423028ac594238aaf80574121c5107f1c105765c2e181da9a659b127ce48104860ce6c09522d4dfa8610e",
+        "id_b64url": "pvRQrk3f-sdUX_SvWeDwnLKQB8qDdoNq1vggHwEi5mI"
+      }
+    },
+    {
+      "name": "empty-name-and-value",
+      "description": "Both name and value empty. Four bytes of tag region: count, 0x00, 0x00, terminator.",
+      "seed_hex": "1939817dbcff858615fb4a166668ea0efb80df72b07560b95097abd803f6b64b",
+      "public_key_base58": "7eUd61RHaiiJCRq1HS5n5NgZQoQb2qiYdEUnBBH3zxoq",
+      "input": {
+        "data_hex": "78",
+        "tags": [
+          {
+            "name": "",
+            "value": ""
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "0400b594b069890f2d444958ce5136ca8188626636b0f119072b4bbf502ded93893c11a0de3771cccd2b11353130cb063511394b80dcaf254015a939a3ce9673200e62bfd80fbf0f19254aae0055112bfa0fdc0d26abd620ecf69173a0d9f1799ae00000010000000000000004000000000000000200000078",
+        "signed_item_length": 121,
+        "signature_hex": "b594b069890f2d444958ce5136ca8188626636b0f119072b4bbf502ded93893c11a0de3771cccd2b11353130cb063511394b80dcaf254015a939a3ce9673200e",
+        "id_b64url": "0uajCQg5arHvx5Ku8DvDomcJcbRpo2Ss7Fh2Q-1WJK0"
+      }
+    },
+    {
+      "name": "tag-value-64-bytes",
+      "description": "A well-formed UTF-8 tag value of exactly 64 bytes, the last length that takes arbundles' hand-rolled encoder path. Must byte-match the 65-byte case's encoder.",
+      "seed_hex": "b40796c7571250e8c2a4cb36f7725b9bda071d15202a2d44c414943258a237f4",
+      "public_key_base58": "EhkP2tH6uuD6MSvcfiC9eU1rqTSXCZDoA75RYXjPHAiJ",
+      "input": {
+        "data_hex": "626f756e64617279",
+        "tags": [
+          {
+            "name": "b",
+            "value": "éééééééééééééééééééééééééééééééé"
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "0400e4daabe62bc54d0a000c106176835d3a4fb16ca5e7356962ef9defb47baaf8c30ee570b98b1894e369cd3306346704f1a9003694a9bd18d0297b2567c20c830ccb98365185ddf681dbf9ea8a4eb83a5eadd74bf1e0a121b01cc86165c0860ebf0000010000000000000046000000000000000202628001c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a900626f756e64617279",
+        "signed_item_length": 194,
+        "signature_hex": "e4daabe62bc54d0a000c106176835d3a4fb16ca5e7356962ef9defb47baaf8c30ee570b98b1894e369cd3306346704f1a9003694a9bd18d0297b2567c20c830c",
+        "id_b64url": "_YuOetw3tCUJ9ngf4LodKyo1jgJ88xZkBkdUEHEkJZs"
+      }
+    },
+    {
+      "name": "tag-value-65-bytes",
+      "description": "The same content plus one byte, which crosses arbundles' internal 64-byte threshold and switches it to Buffer.write. Both paths must agree for well-formed input; this vector is the guard on that.",
+      "seed_hex": "ff67dbd863cf0758c1c28564f12d53081d5a92d0cddb5242b2c4864a084ddb01",
+      "public_key_base58": "9YEATitXkWgPnDTy1ugy816TGXwLqJwvtz9ydeyLKmX2",
+      "input": {
+        "data_hex": "626f756e64617279",
+        "tags": [
+          {
+            "name": "b",
+            "value": "ééééééééééééééééééééééééééééééééz"
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "0400cd694040fcd7c17a8c96c3e9c7e15033acfc3c24d2b21b19a7f0143855885eb2aa66b2d0b790199a6984c948644b39a6796c7129f2b9b6953fc024297d05d3067edd6252bac4c64f5ae1d7177bcb29c86baaeb8a22e40724c97027d41b3ac83d0000010000000000000047000000000000000202628201c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a97a00626f756e64617279",
+        "signed_item_length": 195,
+        "signature_hex": "cd694040fcd7c17a8c96c3e9c7e15033acfc3c24d2b21b19a7f0143855885eb2aa66b2d0b790199a6984c948644b39a6796c7129f2b9b6953fc024297d05d306",
+        "id_b64url": "_DlvTaZ51tCj80Rin5AfkgoEo7fwGLOs7LV5icer-wM"
+      }
+    },
+    {
+      "name": "lone-surrogate-tag-short",
+      "description": "KNOWN DIVERGENCE. An unpaired UTF-16 high surrogate (U+D800) in a tag value under 64 bytes. arbundles' hand-rolled encoder emits the raw code point as WTF-8 (ED A0 80) while declaring Buffer.byteLength (3), which is the length of the standard-UTF-8 replacement character. Standard UTF-8 would emit EF BF BD. Same width, different bytes, so nothing desyncs and nothing errors, a reimplementation just silently produces a different id.",
+      "seed_hex": "2ccada43d90fce22272ebfc4f5829583603e0c883b2f9604567b4270dc022ab5",
+      "public_key_base58": "GyuvwoqZpgXaUMMtqeQFSHoXXEaQ1q5JewttWEbmyYTZ",
+      "input": {
+        "data_hex": "737572726f67617465",
+        "tags": [
+          {
+            "name": "s",
+            "value": "\ud800"
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "040050b576ff9a787d54a8dc8a2378072da08851866e7baa9a66f6faf4503c99dfc078f557b878233c158dde7284c506a3d2d1d22f592a7acf15554eb4d7e6b9680eed73ad6cd5aa4fbbedce367a3bf5b818af3e8611b6b9fb3c9ed2dc86adc1c6e000000100000000000000080000000000000002027306eda08000737572726f67617465",
+        "signed_item_length": 133,
+        "signature_hex": "50b576ff9a787d54a8dc8a2378072da08851866e7baa9a66f6faf4503c99dfc078f557b878233c158dde7284c506a3d2d1d22f592a7acf15554eb4d7e6b9680e",
+        "id_b64url": "D4J0es3fWB5In0Jn3hqmcwXg1nqVBT6VAi_-4JaUPj0"
+      }
+    },
+    {
+      "name": "lone-surrogate-tag-long",
+      "description": "KNOWN DIVERGENCE, other side. The same unpaired surrogate in a value over 64 bytes, where arbundles falls through to Buffer.write and emits standard UTF-8 (EF BF BD). Identical logical input to the previous vector, different bytes, purely because of length. arbundles is not self-consistent here.",
+      "seed_hex": "3b34055882212b7e6199af741d24f499701e393443c4488eab1d0bd6d5d5dc93",
+      "public_key_base58": "HUVku6HSpUHFsN8cBZKiMqvymL4ToafCAuh6oos4sTnd",
+      "input": {
+        "data_hex": "737572726f67617465",
+        "tags": [
+          {
+            "name": "s",
+            "value": "\ud800xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "040078204fa3732b5dd46d75476e9474342ff9f0f74dacf5e88a3e0a00496e3e7f59c5d6e39ddff5fe7ca04596063004491fc0069b10a6b4ab9fa8d288fe960eff04f4c6302b08c8ad3c22f2975c55a323d2b78e7a4b9118e67d24bb10a3321cdbbe000001000000000000004c000000000000000202738c01efbfbd7878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787800737572726f67617465",
+        "signed_item_length": 201,
+        "signature_hex": "78204fa3732b5dd46d75476e9474342ff9f0f74dacf5e88a3e0a00496e3e7f59c5d6e39ddff5fe7ca04596063004491fc0069b10a6b4ab9fa8d288fe960eff04",
+        "id_b64url": "9s8mf5PI8zM8gcUuuVAYXwxA4aruVtaXFUdW0lPczXc"
+      }
+    },
+    {
+      "name": "binary-data-all-bytes",
+      "description": "Data is all 256 byte values 0x00..0xFF, not valid UTF-8. Data is an opaque byte string and must never be routed through a text codec.",
+      "seed_hex": "471ef31ba0715c0ba83d0a093fa120da764ecd255a8aa71fa3015aaace31e1c0",
+      "public_key_base58": "8uBdXka16VgzwyVJVDxm54X1GfKFnLes9dVU1WSHdHG4",
+      "input": {
+        "data_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+        "tags": [
+          {
+            "name": "Content-Type",
+            "value": "application/octet-stream"
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "0400013581d9c0e54692bdf7eaa60afda6ddda153b8ecd1a35e4e3e20fcb85e293b8fedc7f631ef9df7a1c5448a927ab37442458c6f6e02417417acad9c18292270a7560079d55e3af15a4cfb082e529c2a50d1c3c9ade7ffa666f479507c47489290000010000000000000028000000000000000218436f6e74656e742d54797065306170706c69636174696f6e2f6f637465742d73747265616d00000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+        "signed_item_length": 412,
+        "signature_hex": "013581d9c0e54692bdf7eaa60afda6ddda153b8ecd1a35e4e3e20fcb85e293b8fedc7f631ef9df7a1c5448a927ab37442458c6f6e02417417acad9c18292270a",
+        "id_b64url": "RFIigNN7rtcMLN-ngiqrXsUYusIHn77IGFCRjIf5nOU"
+      }
+    },
+    {
+      "name": "data-4096-bytes",
+      "description": "Exactly 4096 bytes of data. A size boundary that shares its number with MAX_TAG_BYTES, which is a common place to conflate two unrelated limits.",
+      "seed_hex": "d5da2b7078b5f23ff7cc53b2f165835d12f4897e7202be37735fea1639a7eb07",
+      "public_key_base58": "5EZfjuPJ14EScGWiUJ8aDAjocz4btvetaSPZ8Zer3xLx",
+      "input": {
+        "data_hex": "0726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e8",
+        "tags": [
+          {
+            "name": "Size",
+            "value": "4096"
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "04001811f951b9352fc4e0013836c132351c9756f2ba020dd6d2f380c27f20a4d7d1e6ea23c2c13edacbe26e509cbe469e7d7c519e7787978aafed2d299ab371790a3ee83c6835a3bf62c6ed7b6f69573b937ac67bddba7a68d647ebd9299372f541000001000000000000000c00000000000000020853697a650834303936000726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e80726456483a2c1e0ff1e3d5c7b9ab9d8f71635547392b1d0ef0e2d4c6b8aa9c8e70625446382a1c0dffe1d3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd1c3b5a7998b7d6f51433527190afceed0c2b4a6988a7c6e504234261809fbeddfc1b3a597897b6d5f4133251708faecdec0b2a496887a6c5e4032241607f9ebddcfb1a39587796b5d4f31231506f8eadcceb0a29486786a5c4e30221405f7e9dbcdbfa1938577695b4d3f211304f6e8daccbea0928476685a4c3e201203f5e7d9cbbdaf91837567594b3d2f1102f4e6d8cabcae90827466584a3c2e1001f3e5d7c9bbad9f81736557493b2d1f00f2e4d6c8baac9e8",
+        "signed_item_length": 4224,
+        "signature_hex": "1811f951b9352fc4e0013836c132351c9756f2ba020dd6d2f380c27f20a4d7d1e6ea23c2c13edacbe26e509cbe469e7d7c519e7787978aafed2d299ab371790a",
+        "id_b64url": "HBMYtJye09_U2OxGaqI_yrx2OfQcJi23uPnnbGk1ZFE"
+      }
+    },
+    {
+      "name": "target-present",
+      "description": "Target present, anchor absent. Flips the target presence byte to 1 and inserts 32 bytes, shifting every subsequent offset by 32.",
+      "seed_hex": "2af7f6db01b6c692ae42462f6f776f320d5c540d9f25974c4365fdaf66f45bbd",
+      "public_key_base58": "4erHjCxHMX8mqqYhr7eVzeZge1KMn1CHwptKyo2oF4rx",
+      "input": {
+        "data_hex": "7769746820746172676574",
+        "tags": [],
+        "target_b64url": "dGFyZ2V0LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0",
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "04005e5c5da26c08fe8c4dbce2c03caf80dfb8bfaa848d83820bb84de42949d1b3d3c1c1d0c5c9737ef6b37a2043b4168b2321f2902fed3f76190a47688363feea04364548030319abd65e4a36669f15ca761e6e04f586f9686a12a7db21f4d8e6ed017461726765742d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d00000000000000000000000000000000007769746820746172676574",
+        "signed_item_length": 159,
+        "signature_hex": "5e5c5da26c08fe8c4dbce2c03caf80dfb8bfaa848d83820bb84de42949d1b3d3c1c1d0c5c9737ef6b37a2043b4168b2321f2902fed3f76190a47688363feea04",
+        "id_b64url": "_mg-fP9YeScE44c98BS4tGYnX_vRxYtibl0427ywG7Q"
+      }
+    },
+    {
+      "name": "anchor-present",
+      "description": "Anchor present, target absent. NOTE arbundles takes the anchor argument as a raw string and Buffer.from()s it, the anchor is 32 RAW BYTES, not a base64url-decoded value the way target is. Passing a 43-char base64url anchor throws.",
+      "seed_hex": "e53e0cac5dbf1964178e5edf5a14b1a62ac727a02d61b72be193620099583191",
+      "public_key_base58": "CZwmmVjZYzXoQCQ5zdojR69qQj7k8sah3YAhTYAtNKZk",
+      "input": {
+        "data_hex": "7769746820616e63686f72",
+        "tags": [],
+        "target_b64url": null,
+        "anchor_utf8": "anchor--------------------------"
+      },
+      "expected": {
+        "signed_item_hex": "0400d4061872de94d23f87fd9e1ca2a9c30e729a9177e6aa03870716c17cc2a449200936796d02c65666e5839004f8acfa506d36e808c6c4b47a2c021f7753801404abe112a3670f431c7461ada609fb7e5ab5808efb74726d7920de953da20886cb0001616e63686f722d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d000000000000000000000000000000007769746820616e63686f72",
+        "signed_item_length": 159,
+        "signature_hex": "d4061872de94d23f87fd9e1ca2a9c30e729a9177e6aa03870716c17cc2a449200936796d02c65666e5839004f8acfa506d36e808c6c4b47a2c021f7753801404",
+        "id_b64url": "VFc8wx0ZGaxSf6lXlv6vg15rbW3Ro8_wviW62vS-BGw"
+      }
+    },
+    {
+      "name": "target-and-anchor",
+      "description": "Both optional fields present, no tags. The layout with the maximum optional-field displacement.",
+      "seed_hex": "ad3605855d57cfef5df4b3954b7d6cbebf8ee0030cf165a44e6a3ef7bf03adab",
+      "public_key_base58": "89qY7JkwidKMxAHPrP3jWvYNTRKaypRPSNhLSL75GKhj",
+      "input": {
+        "data_hex": "626f7468",
+        "tags": [],
+        "target_b64url": "dGFyZ2V0LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0",
+        "anchor_utf8": "anchor--------------------------"
+      },
+      "expected": {
+        "signed_item_hex": "040045702e94600df3c87a17912b984c5913484780317b81766c5c25f674bb088f9558e514faeb0b937a8385274e47de30380fd156029769af9c7a1a097ed37cbb0b6a4555cf18cc3b9c82918e902908abaa636f0d48cc8ebfd3e7a96c0b560e905a017461726765742d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d01616e63686f722d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d00000000000000000000000000000000626f7468",
+        "signed_item_length": 184,
+        "signature_hex": "45702e94600df3c87a17912b984c5913484780317b81766c5c25f674bb088f9558e514faeb0b937a8385274e47de30380fd156029769af9c7a1a097ed37cbb0b",
+        "id_b64url": "PIiCJFL7wSsY6eFHrg_w0mPmIq80OjStJufsyW6auRs"
+      }
+    },
+    {
+      "name": "everything-present",
+      "description": "Target, anchor, several unicode tags and a non-empty payload all at once. The integration case: if offsets are computed independently anywhere, this is where it shows.",
+      "seed_hex": "ff4c12e3f81587e5e6f5230df2396cabe3a44729d577b3f38953dbbd65f58f37",
+      "public_key_base58": "B9SCoHs4yAkswiKrfWSbox21iWCYhA9Ao8LHxGDPXNoo",
+      "input": {
+        "data_hex": "7468652066756c6c20686f75736520f09f8fa0",
+        "tags": [
+          {
+            "name": "Content-Type",
+            "value": "text/plain; charset=utf-8"
+          },
+          {
+            "name": "Тема",
+            "value": "всё сразу"
+          },
+          {
+            "name": "",
+            "value": ""
+          },
+          {
+            "name": "Trailing",
+            "value": "🎯"
+          }
+        ],
+        "target_b64url": "dGFyZ2V0LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0",
+        "anchor_utf8": "anchor--------------------------"
+      },
+      "expected": {
+        "signed_item_hex": "04002e75a432e6ac37dab7c5bc5a7380a7e1eb29834f22f2bbd380f1f1e426b0e0b5ec3d9c0839970ea2841034fa53876e17f1508cf3442473ed0ab0a3e8f1f4db0396be03698b301e619c308c457f717a58d408ebd39e536bd2a7dfdabe6b704b5e017461726765742d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d01616e63686f722d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d040000000000000054000000000000000818436f6e74656e742d5479706532746578742f706c61696e3b20636861727365743d7574662d3810d0a2d0b5d0bcd0b022d0b2d181d19120d181d180d0b0d0b7d183000010547261696c696e6708f09f8eaf007468652066756c6c20686f75736520f09f8fa0",
+        "signed_item_length": 283,
+        "signature_hex": "2e75a432e6ac37dab7c5bc5a7380a7e1eb29834f22f2bbd380f1f1e426b0e0b5ec3d9c0839970ea2841034fa53876e17f1508cf3442473ed0ab0a3e8f1f4db03",
+        "id_b64url": "sCvFzZWb2iatjjdh5GJc8WphygvBmcw9XMGD-scee3Y"
+      }
+    },
+    {
+      "name": "max-tag-set",
+      "description": "90 tags, filling the tag region to just under the 4096-byte MAX_TAG_BYTES cap. Also crosses the 63-tag boundary where the zigzag varint for the tag count grows to two bytes.",
+      "seed_hex": "f55e47dc3fc4398560c588fc079635895b391f0ff264b6f9e608efef97ad5fa3",
+      "public_key_base58": "BL3KaZ8PrLtxiRwjCqAFhFkiQYr7i1CJTjbM8DA1fCL7",
+      "input": {
+        "data_hex": "6d616e792074616773",
+        "tags": [
+          {
+            "name": "tag-name-000",
+            "value": "value-000-payload"
+          },
+          {
+            "name": "tag-name-001",
+            "value": "value-001-payload"
+          },
+          {
+            "name": "tag-name-002",
+            "value": "value-002-payload"
+          },
+          {
+            "name": "tag-name-003",
+            "value": "value-003-payload"
+          },
+          {
+            "name": "tag-name-004",
+            "value": "value-004-payload"
+          },
+          {
+            "name": "tag-name-005",
+            "value": "value-005-payload"
+          },
+          {
+            "name": "tag-name-006",
+            "value": "value-006-payload"
+          },
+          {
+            "name": "tag-name-007",
+            "value": "value-007-payload"
+          },
+          {
+            "name": "tag-name-008",
+            "value": "value-008-payload"
+          },
+          {
+            "name": "tag-name-009",
+            "value": "value-009-payload"
+          },
+          {
+            "name": "tag-name-010",
+            "value": "value-010-payload"
+          },
+          {
+            "name": "tag-name-011",
+            "value": "value-011-payload"
+          },
+          {
+            "name": "tag-name-012",
+            "value": "value-012-payload"
+          },
+          {
+            "name": "tag-name-013",
+            "value": "value-013-payload"
+          },
+          {
+            "name": "tag-name-014",
+            "value": "value-014-payload"
+          },
+          {
+            "name": "tag-name-015",
+            "value": "value-015-payload"
+          },
+          {
+            "name": "tag-name-016",
+            "value": "value-016-payload"
+          },
+          {
+            "name": "tag-name-017",
+            "value": "value-017-payload"
+          },
+          {
+            "name": "tag-name-018",
+            "value": "value-018-payload"
+          },
+          {
+            "name": "tag-name-019",
+            "value": "value-019-payload"
+          },
+          {
+            "name": "tag-name-020",
+            "value": "value-020-payload"
+          },
+          {
+            "name": "tag-name-021",
+            "value": "value-021-payload"
+          },
+          {
+            "name": "tag-name-022",
+            "value": "value-022-payload"
+          },
+          {
+            "name": "tag-name-023",
+            "value": "value-023-payload"
+          },
+          {
+            "name": "tag-name-024",
+            "value": "value-024-payload"
+          },
+          {
+            "name": "tag-name-025",
+            "value": "value-025-payload"
+          },
+          {
+            "name": "tag-name-026",
+            "value": "value-026-payload"
+          },
+          {
+            "name": "tag-name-027",
+            "value": "value-027-payload"
+          },
+          {
+            "name": "tag-name-028",
+            "value": "value-028-payload"
+          },
+          {
+            "name": "tag-name-029",
+            "value": "value-029-payload"
+          },
+          {
+            "name": "tag-name-030",
+            "value": "value-030-payload"
+          },
+          {
+            "name": "tag-name-031",
+            "value": "value-031-payload"
+          },
+          {
+            "name": "tag-name-032",
+            "value": "value-032-payload"
+          },
+          {
+            "name": "tag-name-033",
+            "value": "value-033-payload"
+          },
+          {
+            "name": "tag-name-034",
+            "value": "value-034-payload"
+          },
+          {
+            "name": "tag-name-035",
+            "value": "value-035-payload"
+          },
+          {
+            "name": "tag-name-036",
+            "value": "value-036-payload"
+          },
+          {
+            "name": "tag-name-037",
+            "value": "value-037-payload"
+          },
+          {
+            "name": "tag-name-038",
+            "value": "value-038-payload"
+          },
+          {
+            "name": "tag-name-039",
+            "value": "value-039-payload"
+          },
+          {
+            "name": "tag-name-040",
+            "value": "value-040-payload"
+          },
+          {
+            "name": "tag-name-041",
+            "value": "value-041-payload"
+          },
+          {
+            "name": "tag-name-042",
+            "value": "value-042-payload"
+          },
+          {
+            "name": "tag-name-043",
+            "value": "value-043-payload"
+          },
+          {
+            "name": "tag-name-044",
+            "value": "value-044-payload"
+          },
+          {
+            "name": "tag-name-045",
+            "value": "value-045-payload"
+          },
+          {
+            "name": "tag-name-046",
+            "value": "value-046-payload"
+          },
+          {
+            "name": "tag-name-047",
+            "value": "value-047-payload"
+          },
+          {
+            "name": "tag-name-048",
+            "value": "value-048-payload"
+          },
+          {
+            "name": "tag-name-049",
+            "value": "value-049-payload"
+          },
+          {
+            "name": "tag-name-050",
+            "value": "value-050-payload"
+          },
+          {
+            "name": "tag-name-051",
+            "value": "value-051-payload"
+          },
+          {
+            "name": "tag-name-052",
+            "value": "value-052-payload"
+          },
+          {
+            "name": "tag-name-053",
+            "value": "value-053-payload"
+          },
+          {
+            "name": "tag-name-054",
+            "value": "value-054-payload"
+          },
+          {
+            "name": "tag-name-055",
+            "value": "value-055-payload"
+          },
+          {
+            "name": "tag-name-056",
+            "value": "value-056-payload"
+          },
+          {
+            "name": "tag-name-057",
+            "value": "value-057-payload"
+          },
+          {
+            "name": "tag-name-058",
+            "value": "value-058-payload"
+          },
+          {
+            "name": "tag-name-059",
+            "value": "value-059-payload"
+          },
+          {
+            "name": "tag-name-060",
+            "value": "value-060-payload"
+          },
+          {
+            "name": "tag-name-061",
+            "value": "value-061-payload"
+          },
+          {
+            "name": "tag-name-062",
+            "value": "value-062-payload"
+          },
+          {
+            "name": "tag-name-063",
+            "value": "value-063-payload"
+          },
+          {
+            "name": "tag-name-064",
+            "value": "value-064-payload"
+          },
+          {
+            "name": "tag-name-065",
+            "value": "value-065-payload"
+          },
+          {
+            "name": "tag-name-066",
+            "value": "value-066-payload"
+          },
+          {
+            "name": "tag-name-067",
+            "value": "value-067-payload"
+          },
+          {
+            "name": "tag-name-068",
+            "value": "value-068-payload"
+          },
+          {
+            "name": "tag-name-069",
+            "value": "value-069-payload"
+          },
+          {
+            "name": "tag-name-070",
+            "value": "value-070-payload"
+          },
+          {
+            "name": "tag-name-071",
+            "value": "value-071-payload"
+          },
+          {
+            "name": "tag-name-072",
+            "value": "value-072-payload"
+          },
+          {
+            "name": "tag-name-073",
+            "value": "value-073-payload"
+          },
+          {
+            "name": "tag-name-074",
+            "value": "value-074-payload"
+          },
+          {
+            "name": "tag-name-075",
+            "value": "value-075-payload"
+          },
+          {
+            "name": "tag-name-076",
+            "value": "value-076-payload"
+          },
+          {
+            "name": "tag-name-077",
+            "value": "value-077-payload"
+          },
+          {
+            "name": "tag-name-078",
+            "value": "value-078-payload"
+          },
+          {
+            "name": "tag-name-079",
+            "value": "value-079-payload"
+          },
+          {
+            "name": "tag-name-080",
+            "value": "value-080-payload"
+          },
+          {
+            "name": "tag-name-081",
+            "value": "value-081-payload"
+          },
+          {
+            "name": "tag-name-082",
+            "value": "value-082-payload"
+          },
+          {
+            "name": "tag-name-083",
+            "value": "value-083-payload"
+          },
+          {
+            "name": "tag-name-084",
+            "value": "value-084-payload"
+          },
+          {
+            "name": "tag-name-085",
+            "value": "value-085-payload"
+          },
+          {
+            "name": "tag-name-086",
+            "value": "value-086-payload"
+          },
+          {
+            "name": "tag-name-087",
+            "value": "value-087-payload"
+          },
+          {
+            "name": "tag-name-088",
+            "value": "value-088-payload"
+          },
+          {
+            "name": "tag-name-089",
+            "value": "value-089-payload"
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "0400157fe2393e7857687a75331cf6c1632601b60315a20cd9372d5d2d19d0350320b225a7a2ba7f4d4e77494b6164199364228dcf87040fb50eaa90b95a91226b0b9975873a08b188881adf3d8f23f14c79ed07833e1150006e58e56f0476e13df000005a00000000000000e90a000000000000b401187461672d6e616d652d3030302276616c75652d3030302d7061796c6f6164187461672d6e616d652d3030312276616c75652d3030312d7061796c6f6164187461672d6e616d652d3030322276616c75652d3030322d7061796c6f6164187461672d6e616d652d3030332276616c75652d3030332d7061796c6f6164187461672d6e616d652d3030342276616c75652d3030342d7061796c6f6164187461672d6e616d652d3030352276616c75652d3030352d7061796c6f6164187461672d6e616d652d3030362276616c75652d3030362d7061796c6f6164187461672d6e616d652d3030372276616c75652d3030372d7061796c6f6164187461672d6e616d652d3030382276616c75652d3030382d7061796c6f6164187461672d6e616d652d3030392276616c75652d3030392d7061796c6f6164187461672d6e616d652d3031302276616c75652d3031302d7061796c6f6164187461672d6e616d652d3031312276616c75652d3031312d7061796c6f6164187461672d6e616d652d3031322276616c75652d3031322d7061796c6f6164187461672d6e616d652d3031332276616c75652d3031332d7061796c6f6164187461672d6e616d652d3031342276616c75652d3031342d7061796c6f6164187461672d6e616d652d3031352276616c75652d3031352d7061796c6f6164187461672d6e616d652d3031362276616c75652d3031362d7061796c6f6164187461672d6e616d652d3031372276616c75652d3031372d7061796c6f6164187461672d6e616d652d3031382276616c75652d3031382d7061796c6f6164187461672d6e616d652d3031392276616c75652d3031392d7061796c6f6164187461672d6e616d652d3032302276616c75652d3032302d7061796c6f6164187461672d6e616d652d3032312276616c75652d3032312d7061796c6f6164187461672d6e616d652d3032322276616c75652d3032322d7061796c6f6164187461672d6e616d652d3032332276616c75652d3032332d7061796c6f6164187461672d6e616d652d3032342276616c75652d3032342d7061796c6f6164187461672d6e616d652d3032352276616c75652d3032352d7061796c6f6164187461672d6e616d652d3032362276616c75652d3032362d7061796c6f6164187461672d6e616d652d3032372276616c75652d3032372d7061796c6f6164187461672d6e616d652d3032382276616c75652d3032382d7061796c6f6164187461672d6e616d652d3032392276616c75652d3032392d7061796c6f6164187461672d6e616d652d3033302276616c75652d3033302d7061796c6f6164187461672d6e616d652d3033312276616c75652d3033312d7061796c6f6164187461672d6e616d652d3033322276616c75652d3033322d7061796c6f6164187461672d6e616d652d3033332276616c75652d3033332d7061796c6f6164187461672d6e616d652d3033342276616c75652d3033342d7061796c6f6164187461672d6e616d652d3033352276616c75652d3033352d7061796c6f6164187461672d6e616d652d3033362276616c75652d3033362d7061796c6f6164187461672d6e616d652d3033372276616c75652d3033372d7061796c6f6164187461672d6e616d652d3033382276616c75652d3033382d7061796c6f6164187461672d6e616d652d3033392276616c75652d3033392d7061796c6f6164187461672d6e616d652d3034302276616c75652d3034302d7061796c6f6164187461672d6e616d652d3034312276616c75652d3034312d7061796c6f6164187461672d6e616d652d3034322276616c75652d3034322d7061796c6f6164187461672d6e616d652d3034332276616c75652d3034332d7061796c6f6164187461672d6e616d652d3034342276616c75652d3034342d7061796c6f6164187461672d6e616d652d3034352276616c75652d3034352d7061796c6f6164187461672d6e616d652d3034362276616c75652d3034362d7061796c6f6164187461672d6e616d652d3034372276616c75652d3034372d7061796c6f6164187461672d6e616d652d3034382276616c75652d3034382d7061796c6f6164187461672d6e616d652d3034392276616c75652d3034392d7061796c6f6164187461672d6e616d652d3035302276616c75652d3035302d7061796c6f6164187461672d6e616d652d3035312276616c75652d3035312d7061796c6f6164187461672d6e616d652d3035322276616c75652d3035322d7061796c6f6164187461672d6e616d652d3035332276616c75652d3035332d7061796c6f6164187461672d6e616d652d3035342276616c75652d3035342d7061796c6f6164187461672d6e616d652d3035352276616c75652d3035352d7061796c6f6164187461672d6e616d652d3035362276616c75652d3035362d7061796c6f6164187461672d6e616d652d3035372276616c75652d3035372d7061796c6f6164187461672d6e616d652d3035382276616c75652d3035382d7061796c6f6164187461672d6e616d652d3035392276616c75652d3035392d7061796c6f6164187461672d6e616d652d3036302276616c75652d3036302d7061796c6f6164187461672d6e616d652d3036312276616c75652d3036312d7061796c6f6164187461672d6e616d652d3036322276616c75652d3036322d7061796c6f6164187461672d6e616d652d3036332276616c75652d3036332d7061796c6f6164187461672d6e616d652d3036342276616c75652d3036342d7061796c6f6164187461672d6e616d652d3036352276616c75652d3036352d7061796c6f6164187461672d6e616d652d3036362276616c75652d3036362d7061796c6f6164187461672d6e616d652d3036372276616c75652d3036372d7061796c6f6164187461672d6e616d652d3036382276616c75652d3036382d7061796c6f6164187461672d6e616d652d3036392276616c75652d3036392d7061796c6f6164187461672d6e616d652d3037302276616c75652d3037302d7061796c6f6164187461672d6e616d652d3037312276616c75652d3037312d7061796c6f6164187461672d6e616d652d3037322276616c75652d3037322d7061796c6f6164187461672d6e616d652d3037332276616c75652d3037332d7061796c6f6164187461672d6e616d652d3037342276616c75652d3037342d7061796c6f6164187461672d6e616d652d3037352276616c75652d3037352d7061796c6f6164187461672d6e616d652d3037362276616c75652d3037362d7061796c6f6164187461672d6e616d652d3037372276616c75652d3037372d7061796c6f6164187461672d6e616d652d3037382276616c75652d3037382d7061796c6f6164187461672d6e616d652d3037392276616c75652d3037392d7061796c6f6164187461672d6e616d652d3038302276616c75652d3038302d7061796c6f6164187461672d6e616d652d3038312276616c75652d3038312d7061796c6f6164187461672d6e616d652d3038322276616c75652d3038322d7061796c6f6164187461672d6e616d652d3038332276616c75652d3038332d7061796c6f6164187461672d6e616d652d3038342276616c75652d3038342d7061796c6f6164187461672d6e616d652d3038352276616c75652d3038352d7061796c6f6164187461672d6e616d652d3038362276616c75652d3038362d7061796c6f6164187461672d6e616d652d3038372276616c75652d3038372d7061796c6f6164187461672d6e616d652d3038382276616c75652d3038382d7061796c6f6164187461672d6e616d652d3038392276616c75652d3038392d7061796c6f6164006d616e792074616773",
+        "signed_item_length": 2918,
+        "signature_hex": "157fe2393e7857687a75331cf6c1632601b60315a20cd9372d5d2d19d0350320b225a7a2ba7f4d4e77494b6164199364228dcf87040fb50eaa90b95a91226b0b",
+        "id_b64url": "N_LYNgctszls6zAmirT4cIM3QXnWfwBhsUqzG26RcEU"
+      }
+    },
+    {
+      "name": "tag-count-varint-boundary",
+      "description": "Exactly 64 tags. Zigzag(64) = 128, the first count that needs a two-byte varint (0x80 0x01). A single-byte-varint assumption dies here.",
+      "seed_hex": "579a066e9da7175ab22480fe9aaa8f5ac611554a164db1cb11305a2dc6556f92",
+      "public_key_base58": "5H5Je3M1WZHbaRUHSfaaQuyaZihsvAb71Y5bjQYYpQe3",
+      "input": {
+        "data_hex": "36342074616773",
+        "tags": [
+          {
+            "name": "n0",
+            "value": "v0"
+          },
+          {
+            "name": "n1",
+            "value": "v1"
+          },
+          {
+            "name": "n2",
+            "value": "v2"
+          },
+          {
+            "name": "n3",
+            "value": "v3"
+          },
+          {
+            "name": "n4",
+            "value": "v4"
+          },
+          {
+            "name": "n5",
+            "value": "v5"
+          },
+          {
+            "name": "n6",
+            "value": "v6"
+          },
+          {
+            "name": "n7",
+            "value": "v7"
+          },
+          {
+            "name": "n8",
+            "value": "v8"
+          },
+          {
+            "name": "n9",
+            "value": "v9"
+          },
+          {
+            "name": "n10",
+            "value": "v10"
+          },
+          {
+            "name": "n11",
+            "value": "v11"
+          },
+          {
+            "name": "n12",
+            "value": "v12"
+          },
+          {
+            "name": "n13",
+            "value": "v13"
+          },
+          {
+            "name": "n14",
+            "value": "v14"
+          },
+          {
+            "name": "n15",
+            "value": "v15"
+          },
+          {
+            "name": "n16",
+            "value": "v16"
+          },
+          {
+            "name": "n17",
+            "value": "v17"
+          },
+          {
+            "name": "n18",
+            "value": "v18"
+          },
+          {
+            "name": "n19",
+            "value": "v19"
+          },
+          {
+            "name": "n20",
+            "value": "v20"
+          },
+          {
+            "name": "n21",
+            "value": "v21"
+          },
+          {
+            "name": "n22",
+            "value": "v22"
+          },
+          {
+            "name": "n23",
+            "value": "v23"
+          },
+          {
+            "name": "n24",
+            "value": "v24"
+          },
+          {
+            "name": "n25",
+            "value": "v25"
+          },
+          {
+            "name": "n26",
+            "value": "v26"
+          },
+          {
+            "name": "n27",
+            "value": "v27"
+          },
+          {
+            "name": "n28",
+            "value": "v28"
+          },
+          {
+            "name": "n29",
+            "value": "v29"
+          },
+          {
+            "name": "n30",
+            "value": "v30"
+          },
+          {
+            "name": "n31",
+            "value": "v31"
+          },
+          {
+            "name": "n32",
+            "value": "v32"
+          },
+          {
+            "name": "n33",
+            "value": "v33"
+          },
+          {
+            "name": "n34",
+            "value": "v34"
+          },
+          {
+            "name": "n35",
+            "value": "v35"
+          },
+          {
+            "name": "n36",
+            "value": "v36"
+          },
+          {
+            "name": "n37",
+            "value": "v37"
+          },
+          {
+            "name": "n38",
+            "value": "v38"
+          },
+          {
+            "name": "n39",
+            "value": "v39"
+          },
+          {
+            "name": "n40",
+            "value": "v40"
+          },
+          {
+            "name": "n41",
+            "value": "v41"
+          },
+          {
+            "name": "n42",
+            "value": "v42"
+          },
+          {
+            "name": "n43",
+            "value": "v43"
+          },
+          {
+            "name": "n44",
+            "value": "v44"
+          },
+          {
+            "name": "n45",
+            "value": "v45"
+          },
+          {
+            "name": "n46",
+            "value": "v46"
+          },
+          {
+            "name": "n47",
+            "value": "v47"
+          },
+          {
+            "name": "n48",
+            "value": "v48"
+          },
+          {
+            "name": "n49",
+            "value": "v49"
+          },
+          {
+            "name": "n50",
+            "value": "v50"
+          },
+          {
+            "name": "n51",
+            "value": "v51"
+          },
+          {
+            "name": "n52",
+            "value": "v52"
+          },
+          {
+            "name": "n53",
+            "value": "v53"
+          },
+          {
+            "name": "n54",
+            "value": "v54"
+          },
+          {
+            "name": "n55",
+            "value": "v55"
+          },
+          {
+            "name": "n56",
+            "value": "v56"
+          },
+          {
+            "name": "n57",
+            "value": "v57"
+          },
+          {
+            "name": "n58",
+            "value": "v58"
+          },
+          {
+            "name": "n59",
+            "value": "v59"
+          },
+          {
+            "name": "n60",
+            "value": "v60"
+          },
+          {
+            "name": "n61",
+            "value": "v61"
+          },
+          {
+            "name": "n62",
+            "value": "v62"
+          },
+          {
+            "name": "n63",
+            "value": "v63"
+          }
+        ],
+        "target_b64url": null,
+        "anchor_utf8": null
+      },
+      "expected": {
+        "signed_item_hex": "0400f702d50b9987293445286dd3da56228a0fb6822943040c42a09dcab14846ffd74e75e3255b9ebf416716ea109769c1674fce57d3e975e3e19041846eb6314b0f3f8ce846a82d36436d369d69084b4eb82d4b33b6ed0ebe72bd133ce43143860800004000000000000000ef010000000000008001046e30047630046e31047631046e32047632046e33047633046e34047634046e35047635046e36047636046e37047637046e38047638046e39047639066e313006763130066e313106763131066e313206763132066e313306763133066e313406763134066e313506763135066e313606763136066e313706763137066e313806763138066e313906763139066e323006763230066e323106763231066e323206763232066e323306763233066e323406763234066e323506763235066e323606763236066e323706763237066e323806763238066e323906763239066e333006763330066e333106763331066e333206763332066e333306763333066e333406763334066e333506763335066e333606763336066e333706763337066e333806763338066e333906763339066e343006763430066e343106763431066e343206763432066e343306763433066e343406763434066e343506763435066e343606763436066e343706763437066e343806763438066e343906763439066e353006763530066e353106763531066e353206763532066e353306763533066e353406763534066e353506763535066e353606763536066e353706763537066e353806763538066e353906763539066e363006763630066e363106763631066e363206763632066e3633067636330036342074616773",
+        "signed_item_length": 618,
+        "signature_hex": "f702d50b9987293445286dd3da56228a0fb6822943040c42a09dcab14846ffd74e75e3255b9ebf416716ea109769c1674fce57d3e975e3e19041846eb6314b0f",
+        "id_b64url": "KmtcFdPAIvmt-1or2ZAHIk3f6OXKcEV1m9T4wMPfb2Q"
+      }
+    }
+  ]
+}

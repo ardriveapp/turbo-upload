@@ -1,5 +1,5 @@
 const S = require("./reference-signer.js");
-const jwk = require("./test-key.json");
+const jwk = require("./key.js").loadKey();
 const UPLOAD = "https://upload.services.ar-io.dev";
 const GATEWAY = "https://ar-io.dev";
 const stamp = new Date().toISOString();

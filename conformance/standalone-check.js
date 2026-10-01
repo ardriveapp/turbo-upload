@@ -1,9 +1,10 @@
 // Isolation test: reference-signer.js alone, no node_modules anywhere on the resolution
-// path, no arbundles, no network. Reproduces every deterministic field in vectors.json.
+// path, no arbundles, no network. Signs with an ephemeral key unless test-key.json exists. Reproduces every deterministic field in vectors.json.
 const crypto = require("node:crypto");
 const ref = require("./reference-signer.js");
 const V = require("./vectors.json");
-const jwk = require("./test-key.json");
+const jwk = require("./key.js").loadKey();
+const CORPUS_OWNER = Buffer.from(V.key.owner_b64url, "base64url");
 const hex = (b) => Buffer.from(b).toString("hex");
 const sha256 = (b) => crypto.createHash("sha256").update(b).digest();
 let ok = 0, bad = 0;
@@ -13,7 +14,7 @@ for (const v of V.vectors) {
   const b = ref.createDataItem({
     data: Buffer.from(i.data_hex, "hex"), tags: i.tags,
     target: i.target_b64url ?? undefined, anchor: i.anchor_utf8 ?? undefined,
-    owner: ref.ownerFromJwk(jwk),
+    owner: CORPUS_OWNER,
   });
   eq(v.name, "unsigned_item_hex", hex(b), v.expected.unsigned_item_hex);
   eq(v.name, "deep_hash_hex", hex(ref.getSignatureData(b)), v.expected.deep_hash_hex);

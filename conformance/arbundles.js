@@ -15,8 +15,9 @@
  */
 const path = require("node:path");
 
+// Installed by `npm ci` in this directory, which pins @dha-team/arbundles@1.0.4.
 const ARB_ROOT = process.env.ARBUNDLES_ROOT || path.resolve(
-  __dirname, "..", "minimal", "node_modules", "@dha-team", "arbundles", "build", "node", "cjs", "src"
+  __dirname, "node_modules", "@dha-team", "arbundles", "build", "node", "cjs", "src"
 );
 const load = (m) => require(path.join(ARB_ROOT, m));
 

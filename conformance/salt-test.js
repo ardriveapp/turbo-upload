@@ -1,5 +1,5 @@
 const S = require("./reference-signer.js");
-const jwk = require("./test-key.json");
+const jwk = require("./key.js").loadKey();
 const data = Buffer.from(`salt-length conformance probe ${new Date().toISOString()}\n`);
 const tags = [{ name: "App-Name", value: "pds-salt-probe" }, { name: "Content-Type", value: "text/plain" }];
 (async () => {

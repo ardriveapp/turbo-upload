@@ -107,3 +107,44 @@ test("no private key ships with the package", () => {
   walk(root);
   assert.deepEqual(suspects, [], `possible private key material in the package tree: ${suspects.join(", ")}`);
 });
+
+/** Remove comments, so a scan does not trip on prose. */
+function withoutComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:\\])\/\/.*$/gm, "$1");
+}
+
+/** Also blank string literals: a message that says "pass a Buffer" is not a use of Buffer. */
+function codeOnly(src) {
+  return withoutComments(src)
+    .replace(/`(?:\\[\s\S]|[^`\\])*`/g, "``")
+    .replace(/"(?:\\.|[^"\\\n])*"/g, '""')
+    .replace(/'(?:\\.|[^'\\\n])*'/g, "''");
+}
+
+/** Every non-relative require or import in a file, comments excluded. */
+function externalSpecifiers(src) {
+  const code = withoutComments(src);
+  const specs = [];
+  for (const m of code.matchAll(/require\(\s*["']([^"']+)["']\s*\)/g)) specs.push(m[1]);
+  for (const m of code.matchAll(/^\s*import\s[^;]*?from\s+["']([^"']+)["']/gm)) specs.push(m[1]);
+  for (const m of code.matchAll(/import\(\s*["']([^"']+)["']\s*\)/g)) specs.push(m[1]);
+  return specs.filter((s) => !s.startsWith("."));
+}
+
+test("src/core uses no node: module, no Buffer and no process", () => {
+  // The core is what the web build runs. A `node:` import there breaks every
+  // browser bundler at build time, and a stray Buffer or process breaks at run
+  // time in a page with no polyfills, which is the failure that ships.
+  const dir = path.join(root, "src", "core");
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".js"));
+  assert.ok(files.length >= 4, `expected the core files, found ${files.length}`);
+  const offenders = [];
+  for (const f of files) {
+    const src = fs.readFileSync(path.join(dir, f), "utf8");
+    for (const spec of externalSpecifiers(src)) offenders.push(`${f} requires ${spec}`);
+    const code = codeOnly(src);
+    if (/\bBuffer\b/.test(code)) offenders.push(`${f} uses Buffer`);
+    if (/\bprocess\b/.test(code)) offenders.push(`${f} uses process`);
+  }
+  assert.deepEqual(offenders, [], offenders.join("\n"));
+});

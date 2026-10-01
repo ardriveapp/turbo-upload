@@ -71,6 +71,33 @@ jobs:
       # samples themselves did not.
       - run: node scripts/check-samples.mjs
 
+  conformance:
+    runs-on: ubuntu-latest
+    name: conformance against arbundles and turbo-sdk
+    defaults:
+      run:
+        working-directory: conformance
+    steps:
+      - uses: actions/checkout@v4
+      # Node 22, because @ardrive/turbo-sdk@2.1.0 cannot load on Node 18: a
+      # transitive dependency of its Solana stack is ESM only. This pins the
+      # reference, not the package, which the `test` job runs on every version
+      # `engines` names.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # An install, and the only one besides the browser harness: conformance/
+      # has its own package.json and lockfile, so the references it checks
+      # against never reach the package's tree. The root jobs stay install-free.
+      - run: npm ci --no-audit --no-fund
+      # verify.js and standalone-check.js: the type 1 corpus, and the reference
+      # signer cross-verified both ways against arbundles.
+      # type4.js: regenerates the type 4 corpus with turbo-sdk and fails if it
+      # differs from the committed one by a byte.
+      # cross-verify.js: the package's own exports against arbundles' verifier,
+      # both ways, both types, and one-byte tampering refused by both.
+      - run: npm test
+
   house-style:
     runs-on: ubuntu-latest
     name: house style
