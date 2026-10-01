@@ -25,3 +25,11 @@ async function flow(): Promise<number> {
   return buf.length + errors.length + fromKey.getDataItemSize({ data: "abc" });
 }
 void flow;
+
+async function payments(): Promise<string> {
+  const s = await fromSigner.createCheckoutSession({ amount: 1000 });
+  const r = await fromKey.submitFundTransaction("tx", { timeoutMs: 1 });
+  const q: number | null = (await fromKey.getFreeQuota({ address: "a" })).bytesRemaining;
+  return `${s.id}${r.status}${q}`;
+}
+void payments;

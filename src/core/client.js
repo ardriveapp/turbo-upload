@@ -15,6 +15,7 @@ const { encodeBase58 } = require("./base58.js");
 const { request, resolveRetryConfig, DEFAULT_TIMEOUT_MS } = require("./http.js");
 const { PRODUCTION, TESTNET } = require("./endpoints.js");
 const { normalizeSigner, signWithWallet } = require("./signer.js");
+const payment = require("./payment.js");
 const {
   TurboConfigError,
   TurboValidationError,
@@ -434,6 +435,168 @@ class TurboUploadCore {
       );
     }
     return limit;
+  }
+  /* ---------------------------- payments ---------------------------- */
+
+  /**
+   * What `tokenAmount` base units of this client's token buy, in winc, after
+   * the service's fees: GET /v1/price/{token}/{amount}. For Solana the unit is
+   * the lamport, so 1 SOL is 1_000_000_000.
+   *
+   * @returns {Promise<{winc: string, fees: Array, actualTokenAmount: string, equivalentWincTokenAmount: string}>}
+   */
+  async getWincForToken(tokenAmount, options = {}) {
+    assertKnownOptions(options, ["signal", "timeoutMs"], "getWincForToken()", TurboValidationError);
+    const amount = payment.integerString(tokenAmount, "tokenAmount");
+    const { signal, timeoutMs } = options;
+    const res = await this._request(this.paymentUrl, `/v1/price/${this.token}/${amount}`, { signal, timeoutMs });
+    return payment.wincForTokenResult(res.body, amount);
+  }
+
+  /** The payment service's own /v1/info: the funding addresses per token, among other things. */
+  async getPaymentInfo(options = {}) {
+    assertKnownOptions(options, ["signal", "timeoutMs"], "getPaymentInfo()", TurboValidationError);
+    const { signal, timeoutMs } = options;
+    const res = await this._request(this.paymentUrl, "/v1/info", { signal, timeoutMs });
+    return res.body;
+  }
+
+  /**
+   * The address a top-up for this client's token is sent to, read from the
+   * payment service every time rather than kept here: it is the service's to
+   * change, and a stale address is money sent to the wrong place.
+   */
+  async getFundingAddress(options = {}) {
+    assertKnownOptions(options, ["signal", "timeoutMs"], "getFundingAddress()", TurboValidationError);
+    const info = await this.getPaymentInfo(options);
+    const address = info && info.addresses && info.addresses[this.token];
+    if (typeof address !== "string" || address === "") {
+      throw new TurboValidationError(`The payment service at ${this.paymentUrl} reports no funding address for token "${this.token}".`);
+    }
+    return address;
+  }
+
+  /**
+   * How many free-tier bytes an address has left: GET /v1/account/free.
+   *
+   * The free tier is a QUOTA that belongs to the address that SIGNS an item,
+   * not to the one that pays for it with `paidBy`, and it is service policy:
+   * read it, never assume it. `bytesRemaining` is null when the service
+   * reports no limit for the address. There is also a per-IP quota, which no
+   * endpoint reports.
+   *
+   * @returns {Promise<{bytesRemaining: number|null, address: string}>}
+   */
+  async getFreeQuota(options = {}) {
+    assertKnownOptions(options, ["address", "signal", "timeoutMs"], "getFreeQuota()", TurboValidationError);
+    const { address = this.address, signal, timeoutMs } = options;
+    payment.addressString(address, "address");
+    const res = await this._request(this.paymentUrl, `/v1/account/free?address=${encodeURIComponent(address)}`, {
+      signal,
+      timeoutMs,
+      allowedStatuses: [404],
+    });
+    const body = res.body && typeof res.body === "object" ? res.body : {};
+    return { bytesRemaining: body.bytesRemaining ?? null, address };
+  }
+
+  /**
+   * Tell the payment service about a top-up transaction you have already sent
+   * to the funding address: POST /v1/account/balance/{token}.
+   *
+   * This package does not build or send the transfer: your wallet or RPC
+   * library does, to `getFundingAddress()`, optionally with the memo
+   * `turboCreditDestinationAddress=<address>` to credit another address. Wait
+   * until the transaction is `finalized` before submitting it.
+   *
+   * The answer is `status` "confirmed" (credited), "pending" (the service has
+   * not seen it yet and keeps checking: submit again later) or "failed".
+   * Submitting the same id again is safe: the service answers that it is
+   * already credited and credits nothing twice.
+   */
+  async submitFundTransaction(txId, options = {}) {
+    assertKnownOptions(options, ["signal", "timeoutMs"], "submitFundTransaction()", TurboValidationError);
+    const body = payment.fundTransactionBody(txId);
+    const { signal, timeoutMs } = options;
+    const res = await this._request(this.paymentUrl, `/v1/account/balance/${this.token}`, {
+      method: "POST",
+      body,
+      signal,
+      timeoutMs,
+    });
+    return payment.fundTransactionResult(res.status, res.body, txId);
+  }
+
+  /**
+   * Let another address spend up to `approvedWincAmount` of this client's
+   * credits, by uploading an approval data item that this client signs.
+   * The approved address then uploads with `paidBy: client.address`.
+   *
+   * The unused part of an approval returns when it expires
+   * (`expiresBySeconds`). The approval is itself a data item, so a wallet
+   * signer is asked to sign once.
+   *
+   * @returns {Promise<object>} the service's `createdApproval`
+   */
+  async shareCredits(options = {}) {
+    assertKnownOptions(
+      options,
+      ["approvedAddress", "approvedWincAmount", "expiresBySeconds", "signal", "timeoutMs"],
+      "shareCredits()",
+      TurboValidationError,
+    );
+    const approvedAddress = payment.addressString(options.approvedAddress, "approvedAddress");
+    const approvedWincAmount = payment.integerString(options.approvedWincAmount, "approvedWincAmount", { positive: true });
+    const { expiresBySeconds, signal, timeoutMs } = options;
+    if (expiresBySeconds !== undefined && (!Number.isSafeInteger(expiresBySeconds) || expiresBySeconds <= 0)) {
+      throw new TurboValidationError(`\`expiresBySeconds\` must be a positive integer, got ${JSON.stringify(expiresBySeconds)}.`);
+    }
+    // The data is a nonce, as turbo-sdk writes it: two approvals for the same
+    // address and amount must still be two different items.
+    const data = approvedAddress + approvedWincAmount + Date.now();
+    const tags = payment.shareCreditsTags({ approvedAddress, approvedWincAmount, expiresBySeconds });
+    const item = await this.signAsync({ data, tags });
+    const res = await this.uploadSigned(item, { signal, timeoutMs });
+    if (!res.createdApproval) {
+      throw new TurboValidationError(
+        `The approval item ${res.id} was uploaded, but the service reported no createdApproval for it.`,
+      );
+    }
+    return res.createdApproval;
+  }
+
+  /**
+   * A Stripe checkout session that buys credits for `owner` (this client's
+   * address unless given): GET /v1/top-up/checkout-session/{owner}/{currency}/{amount}.
+   *
+   * `amount` is in the currency's smallest unit: cents for "usd", so 1000 is
+   * $10.00. Open `url` to pay. The testnet payment service answers with a
+   * Stripe test-mode session, which a test card completes.
+   */
+  async createCheckoutSession(options = {}) {
+    assertKnownOptions(
+      options,
+      ["amount", "currency", "owner", "uiMode", "promoCodes", "successUrl", "cancelUrl", "returnUrl", "signal", "timeoutMs"],
+      "createCheckoutSession()",
+      TurboValidationError,
+    );
+    const { currency = "usd", owner = this.address, uiMode = "hosted", promoCodes = [], successUrl, cancelUrl, returnUrl, signal, timeoutMs } = options;
+    const amount = payment.integerString(options.amount, "amount", { positive: true });
+    if (typeof currency !== "string" || !/^[a-z]{3}$/i.test(currency)) {
+      throw new TurboValidationError(`\`currency\` must be a three-letter currency code such as "usd", got ${JSON.stringify(currency)}.`);
+    }
+    payment.addressString(owner, "owner");
+    if (!["hosted", "embedded"].includes(uiMode)) {
+      throw new TurboValidationError(`\`uiMode\` must be "hosted" or "embedded", got ${JSON.stringify(uiMode)}.`);
+    }
+    if (!Array.isArray(promoCodes)) throw new TurboValidationError("`promoCodes` must be an array of strings.");
+    const query = payment.checkoutQuery({ token: this.token, uiMode, promoCodes, successUrl, cancelUrl, returnUrl });
+    const res = await this._request(
+      this.paymentUrl,
+      `/v1/top-up/checkout-session/${owner}/${currency.toLowerCase()}/${amount}?${query}`,
+      { signal, timeoutMs },
+    );
+    return payment.checkoutResult(res.body);
   }
 }
 

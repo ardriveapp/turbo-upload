@@ -24,3 +24,14 @@ async function flow(): Promise<string> {
   return `${size}${ok}${sd.length}${res.id}${same.address}`;
 }
 void flow;
+
+async function payments(): Promise<string> {
+  const w = await client.getWincForToken(1_000_000_000n);
+  const f = await client.getFreeQuota();
+  const r = await client.submitFundTransaction("tx");
+  const a = await client.shareCredits({ approvedAddress: "x", approvedWincAmount: "5", expiresBySeconds: 60 });
+  const s = await client.createCheckoutSession({ amount: 1000, currency: "usd" });
+  const addr: string = await client.getFundingAddress();
+  return `${w.winc}${f.bytesRemaining}${r.status}${a.approvalDataItemId}${s.url}${addr}`;
+}
+void payments;

@@ -8,7 +8,8 @@
     "type4:check": "node type4.js",
     "type4:generate": "node type4.js --write",
     "cross": "node cross-verify.js",
-    "test": "npm run verify && npm run type4:check && npm run cross"
+    "test": "npm run verify && npm run type4:check && npm run cross && npm run wire",
+    "wire": "node wire-parity.js"
   },
   "devDependencies": {
     "@ardrive/turbo-sdk": "2.1.0",

@@ -89,6 +89,9 @@ function devnetParams() {
     freeSeedHex: crypto.randomBytes(32).toString("hex"),
     freeDataSeed: `free-${run}`,
     freeBytes: 64 * 1024,
+    spenderSeedHex: crypto.randomBytes(32).toString("hex"),
+    paidDataSeed: `paid-${run}`,
+    paidBytes: 5 * 1024 * 1024 + 256 * 1024,
     run,
   };
 }

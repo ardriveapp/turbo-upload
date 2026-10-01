@@ -269,6 +269,114 @@ export declare class TurboUpload {
   getFreeUploadLimitBytes(options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<number>;
   /** Verify a serialized item. `strictSaltLength` also pins the PSS salt length. */
   verify(binary: Buffer | Uint8Array, options?: { strictSaltLength?: boolean }): boolean;
+  /** What `tokenAmount` base units of this client's token buy, in winc (lamports for Solana). */
+  getWincForToken(tokenAmount: IntegerAmount, options?: CallOptions): Promise<WincForToken>;
+  /** The payment service's /v1/info. */
+  getPaymentInfo(options?: CallOptions): Promise<PaymentInfo>;
+  /** Where a top-up in this client's token is sent, read live from the payment service. */
+  getFundingAddress(options?: CallOptions): Promise<string>;
+  /** Free-tier bytes left for an address as signer (default: this client's). */
+  getFreeQuota(options?: CallOptions & { address?: string }): Promise<FreeQuota>;
+  /**
+   * Report a top-up transaction already sent to getFundingAddress() and finalized.
+   * Submitting the same id twice is safe: nothing is credited twice.
+   */
+  submitFundTransaction(txId: string, options?: CallOptions): Promise<FundTransactionResult>;
+  /** Approve another address to spend up to `approvedWincAmount` of this client's credits. */
+  shareCredits(options: ShareCreditsOptions): Promise<CreditShareApproval>;
+  /** A Stripe checkout session that buys credits. */
+  createCheckoutSession(options: CheckoutSessionOptions): Promise<CheckoutSession>;
+}
+
+/* ------------------------------------------------------------------ *
+ * Payments                                                            *
+ * ------------------------------------------------------------------ */
+
+/** An integer amount: a number, a bigint, or a string of digits. */
+export type IntegerAmount = number | bigint | string;
+
+export interface CallOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
+
+export interface WincForToken {
+  /** What the amount buys, in winc, after fees. */
+  winc: string;
+  fees: unknown[];
+  /** The amount priced, in base units (lamports for Solana). */
+  actualTokenAmount: string;
+  equivalentWincTokenAmount: string;
+}
+
+export interface PaymentInfo {
+  version?: string;
+  /** Funding address per token. */
+  addresses?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+export interface FreeQuota {
+  /** Free-tier bytes left for this address as SIGNER. null when the service reports no limit. */
+  bytesRemaining: number | null;
+  address: string;
+}
+
+export interface FundTransactionResult {
+  id: string;
+  /** "confirmed": credited. "pending": not seen yet, submit again later. "failed": not creditable. */
+  status: "confirmed" | "pending" | "failed";
+  quantity?: string;
+  owner?: string;
+  winc?: string;
+  token?: string;
+  block?: number;
+  recipient?: string;
+  message?: string;
+}
+
+export interface ShareCreditsOptions extends CallOptions {
+  /** The address that may spend the credits, uploading with `paidBy: client.address`. */
+  approvedAddress: string;
+  approvedWincAmount: IntegerAmount;
+  /** The approval expires after this many seconds, and the unused part returns. */
+  expiresBySeconds?: number;
+}
+
+export interface CreditShareApproval {
+  approvalDataItemId: string;
+  approvedAddress: string;
+  payingAddress?: string;
+  approvedWincAmount: string;
+  usedWincAmount?: string;
+  expirationDate?: string;
+  [key: string]: unknown;
+}
+
+export interface CheckoutSessionOptions extends CallOptions {
+  /** In the currency's smallest unit: cents for "usd", so 1000 is $10.00. */
+  amount: IntegerAmount;
+  /** Default "usd". */
+  currency?: string;
+  /** Who is credited. Default: this client's address. */
+  owner?: string;
+  uiMode?: "hosted" | "embedded";
+  promoCodes?: string[];
+  successUrl?: string;
+  cancelUrl?: string;
+  returnUrl?: string;
+}
+
+export interface CheckoutSession {
+  winc: string;
+  adjustments: unknown[];
+  fees: unknown[];
+  /** Open this to pay. */
+  url?: string;
+  id: string;
+  client_secret?: string;
+  actualPaymentAmount: number;
+  quotedPaymentAmount: number;
 }
 
 /* ------------------------------------------------------------------ *

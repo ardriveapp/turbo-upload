@@ -130,6 +130,30 @@ jobs:
       # funded key, and a workflow input lands in a public run's event payload.
       # Run it by hand per release; see harness/README.md.
 
+  devnet-script:
+    runs-on: ubuntu-latest
+    name: the devnet script refuses production
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # scripts/ has its own package.json: @solana/web3.js builds the top-up
+      # transfer there, and never reaches the package.
+      - run: npm ci --no-audit --no-fund
+      # Offline. The live run needs a funded devnet key and stays manual, per
+      # release: a key in a workflow input lands in a public run's event payload.
+      - run: node live-solana-devnet.js --check-guards
+      - name: a mainnet RPC and a production host are refused before any request
+        run: |
+          set +e
+          node live-solana-devnet.js --key /dev/null --rpc https://api.mainnet-beta.solana.com; a=$?
+          node live-solana-devnet.js --key /dev/null --upload-url https://upload.ardrive.io; b=$?
+          [ "$a" = "2" ] && [ "$b" = "2" ] || { echo "::error::expected both to exit 2, got $a and $b"; exit 1; }
+
   house-style:
     runs-on: ubuntu-latest
     name: house style

@@ -128,6 +128,10 @@ async function devnet(params) {
   await step("price for 1 MiB item", async () => (await freeSigner.getUploadCost(freeSigner.getDataItemSize({ dataSize: 1024 * 1024 }))).winc);
   await step("payer balance", async () => (await payer.getBalance()).winc);
 
+  await step("price of 1 SOL", async () => (await payer.getWincForToken(1_000_000_000)).winc);
+  await step("free quota of a fresh signer", async () => (await freeSigner.getFreeQuota()).bytesRemaining);
+  await step("funding address", async () => payer.getFundingAddress());
+
   await step("free upload", async () => {
     const data = deterministicBytes(params.freeDataSeed, params.freeBytes);
     const res = await freeSigner.upload({ data, tags: [{ name: "Content-Type", value: "application/octet-stream" }, { name: "App-Name", value: "turbo-upload-harness" }] });
@@ -135,6 +139,34 @@ async function devnet(params) {
     return { id: res.id, winc: res.winc };
   });
 
+  // Credit sharing from the payer to a fresh key, then an upload that key
+  // signs and the payer pays for. Over the free per-item ceiling, so it is
+  // charged, and the charge has to come out of the payer's approval.
+  const spender = make(params.spenderSeedHex);
+  const paidBytes = params.paidBytes;
+  const approval = await step("shareCredits", async () => {
+    const price = BigInt((await payer.getUploadCost(spender.getDataItemSize({ dataSize: paidBytes }))).winc);
+    const a = await payer.shareCredits({ approvedAddress: spender.address, approvedWincAmount: (price * 12n) / 10n, expiresBySeconds: 900 });
+    return { approvalDataItemId: a.approvalDataItemId, approvedWincAmount: a.approvedWincAmount };
+  });
+  if (approval) {
+    await step("paidBy upload", async () => {
+      const used = async () => {
+        const bal = await payer.getBalance();
+        const a = (bal.givenApprovals || []).find((x) => x.approvedAddress === spender.address);
+        return BigInt(a ? a.usedWincAmount : "0");
+      };
+      const before = await used();
+      const data = deterministicBytes(params.paidDataSeed, paidBytes);
+      const res = await spender.upload({ data, paidBy: payer.address, tags: [{ name: "App-Name", value: "turbo-upload-harness" }] });
+      const after = await used();
+      if (after - before !== BigInt(res.winc) || BigInt(res.winc) === 0n) {
+        throw new Error(`the charge ${res.winc} did not come out of the approval (used ${before} -> ${after})`);
+      }
+      results.uploads.push({ label: "paidBy", id: res.id, seed: params.paidDataSeed, bytes: paidBytes, sha256: await sha256Hex(data), winc: res.winc });
+      return { id: res.id, winc: res.winc, approvalUsed: `${before} -> ${after}` };
+    });
+  }
   return results;
 }
 

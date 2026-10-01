@@ -1,0 +1,17 @@
+{
+  "name": "turbo-upload-scripts",
+  "private": true,
+  "description": "Not published. Developer scripts that talk to the Solana devnet and the testnet Turbo services. @solana/web3.js builds the SOL top-up transfer, which the package itself deliberately does not do. Its dependencies are this directory's, never the package's.",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "devnet": "node live-solana-devnet.js",
+    "probe": "node probe-solana-devnet.js",
+    "guards": "node live-solana-devnet.js --check-guards"
+  },
+  "devDependencies": {
+    "@solana/web3.js": "1.98.4"
+  }
+}
