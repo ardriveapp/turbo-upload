@@ -53,7 +53,7 @@ module.exports = [
     data: Buffer.from("payload", "utf8"),
     tags: [
       { name: "Content-Type", value: "text/plain" },
-      { name: "App-Name", value: "sanning" },
+      { name: "App-Name", value: "turbo-upload" },
       { name: "App-Version", value: "0.1.0" },
       { name: "Unix-Time", value: "1756425600" },
       { name: "Anchor-Kind", value: "commitment" },
