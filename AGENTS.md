@@ -128,8 +128,8 @@ Submitting twice credits once.
 `upload()` sends an item over 10 MiB in 5 MiB chunks without being asked.
 For data you do not want in memory, `uploadStream({ streamFactory, size })`
 reads the stream twice, so `streamFactory` returns a new stream each call.
-Testnet finalizes nothing over 10,485,760 bytes: a larger upload there ends in
-`TurboChunkedUploadError` with `uploadStatus: "INVALID"`.
+If the service does not finalize a chunked upload, it ends in
+`TurboChunkedUploadError`, carrying the `uploadStatus` the service reported.
 
 ## Record the id before it exists
 

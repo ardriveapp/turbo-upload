@@ -623,8 +623,7 @@ export declare class TurboSignerError extends TurboError {
 /**
  * A chunked upload did not finalize: the service reported INVALID (or another
  * failed state), or the wait ran out. UNDERFUNDED is a TurboPaymentError
- * instead. The testnet service finalizes every item over 10,485,760 bytes as
- * INVALID.
+ * instead. `uploadStatus` is the status the service reported.
  */
 export declare class TurboChunkedUploadError extends TurboError {
   constructor(message: string, init?: { uploadId?: string; uploadStatus?: string; endpoint?: string; cause?: unknown });

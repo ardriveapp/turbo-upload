@@ -131,8 +131,8 @@ class TurboSignerError extends TurboError {
  * the last status the service reported. `UNDERFUNDED` is not this class: it
  * is a TurboPaymentError, like every other "cannot pay".
  *
- * `INVALID` does not always mean malformed bytes: the testnet service
- * finalizes every item over 10,485,760 bytes as `INVALID`, whoever sends it.
+ * `uploadStatus` is what the service reported; this package does not
+ * interpret it further.
  */
 class TurboChunkedUploadError extends TurboError {
   constructor(message, { uploadId, uploadStatus, endpoint, cause } = {}) {

@@ -270,10 +270,10 @@ reads the limit from the refusal, remembers it, and sends in chunks. A
 request's timeout grows with its size: at least `timeoutMs`, and enough for
 128 KiB/s.
 
-**The testnet service finalizes no item over 10,485,760 bytes**, chunked or
-not, through this client or `@ardrive/turbo-sdk`: such an upload ends in
-`TurboChunkedUploadError` with `uploadStatus` `"INVALID"`. Test chunking on
-testnet with items of 10 MiB and under, sent with `chunking: "force"`.
+A chunked upload the service does not finalize ends in
+`TurboChunkedUploadError`, with `uploadStatus` set to what the service
+reported (`"INVALID"`, for example) and the `uploadId` to look it up by. To
+exercise chunking with a small item, send it with `chunking: "force"`.
 
 ## Support matrix
 

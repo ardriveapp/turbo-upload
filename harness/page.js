@@ -167,9 +167,8 @@ async function devnet(params) {
       return { id: res.id, winc: res.winc, approvalUsed: `${before} -> ${after}` };
     });
   }
-  // Chunked uploads. Devnet finalizes nothing over 10,485,760 bytes, so the
-  // ones that are fetched back are 10 MiB and under, sent in two chunks; the
-  // large ones are attempted and their outcome recorded as it is.
+  // Chunked uploads: two of 10 MiB and under, sent in two chunks and fetched
+  // back, and the large ones, whose outcome is recorded as the service reports it.
   const MiB = 1024 * 1024;
   await step("chunked, two 5 MiB chunks, paid", async () => {
     const size = 10 * MiB - payer.getDataItemSize({ dataSize: 0 });

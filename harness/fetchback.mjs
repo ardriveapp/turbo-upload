@@ -1,8 +1,9 @@
 // Fetch an item back from the testnet gateway and compare it byte for byte.
 //
-// The gateway meters data egress per IP: a bucket of about 100 MB that refills
-// at about 20 KB/s (its /ar-io/info, rateLimiter.dataEgress), and past it each
-// read answers 402 with an x402 payment offer. So the item is read in 1 MiB
+// The gateway gives each client a byte budget for reads: its /ar-io/info
+// (rateLimiter.dataEgress) reports 102,400,000 bytes, refilling at 20,480
+// bytes a second, and once it is spent a read answers 402 with an x402
+// payment offer. A budget, not a size limit. So the item is read in 1 MiB
 // ranges, and a 402 or 429 waits for the bucket rather than failing the
 // comparison. Nothing is paid.
 //

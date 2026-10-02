@@ -23,7 +23,7 @@
  *
  * Every upload is fetched back from https://ar-io.dev/raw/<id> and compared
  * byte for byte with what was sent, in ranges that wait out the gateway's
- * per-IP egress meter. Every request, from this package and from
+ * per-client read budget. Every request, from this package and from
  * @solana/web3.js, goes through one fetch that refuses any host not on the
  * devnet list before the request leaves.
  */
@@ -183,9 +183,10 @@ async function approvalTo(payer, to) {
 /**
  * Read an item back from the gateway in 1 MiB ranges and compare it.
  *
- * The gateway meters egress per IP (about 100 MB, refilling at about 20 KB/s;
- * see its /ar-io/info) and answers 402 with an x402 offer once the meter is
- * empty. A 402, a 429 or a 404 (not indexed yet) waits 30 s and reads the same
+ * The gateway gives each client a byte budget for reads (its /ar-io/info
+ * reports 102,400,000 bytes, refilling at 20,480 bytes a second) and answers
+ * 402 with an x402 offer once the budget is spent. It is a budget, not a
+ * size limit: any item can be read, a large one over time. A 402, a 429 or a 404 (not indexed yet) waits 30 s and reads the same
  * range again; nothing is paid. Gives up after two hours.
  */
 async function fetchBack(id, expected) {
@@ -248,7 +249,7 @@ async function fetchBack(id, expected) {
     return up;
   });
   const freeCeiling = info?.freeTier?.maxItemBytes ?? info?.freeUploadLimitBytes ?? 5 * 1024 * 1024;
-  const paidSize = freeCeiling + 256 * 1024; // just over the free per-item ceiling
+  const paidSize = freeCeiling + 256 * 1024; // 256 KiB over the free per-item ceiling
 
   await step("prices", async () => {
     const sol = await payer.getWincForToken(1_000_000_000);
@@ -417,10 +418,10 @@ async function fetchBack(id, expected) {
         recorded(`chunked ${mib} MiB`, res, data);
       } catch (err) {
         line("chunks sent", `${chunks} in ${((Date.now() - t0) / 1000).toFixed(1)}s, then ${err.name}: ${err.uploadStatus ?? err.status ?? ""}`);
-        if (err instanceof TurboChunkedUploadError && err.uploadStatus === "INVALID") {
+        if (err instanceof TurboChunkedUploadError) {
           throw new Error(
-            `the testnet service finalized the ${mib} MiB item as INVALID (upload ${err.uploadId}). It does this to every ` +
-              "item over 10,485,760 bytes, through turbo-sdk too: a service limit, not this client. Not fetched back.",
+            `the service did not finalize the ${mib} MiB item: it reported ${err.uploadStatus ?? "no status"} ` +
+              `for upload ${err.uploadId} (${err.message}). Not fetched back.`,
           );
         }
         throw err;
