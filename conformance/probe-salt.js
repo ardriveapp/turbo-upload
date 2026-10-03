@@ -1,11 +1,11 @@
 // Empirical probe: what salt length does arbundles actually emit, and is PSS randomised?
 const crypto = require("node:crypto");
-const ARB = "/tmp/claude-1000/-mnt-c-source-sanning-io-aom/53472aba-ef33-4ece-94cd-bbb80849d7f8/scratchpad/minimal/node_modules/@dha-team/arbundles/build/node/cjs/src/";
+const ARB = require("./arbundles.js").ARB_ROOT + "/";
 const ArweaveSigner = require(ARB + "signing/chains/ArweaveSigner.js").default;
 const { createData } = require(ARB + "ar-data-create.js");
 const getSignatureData = require(ARB + "ar-data-base.js").default;
 
-const jwk = require("./test-key.json");
+const jwk = require("./key.js").loadKey();
 const signer = new ArweaveSigner(jwk);
 
 (async () => {

@@ -71,6 +71,89 @@ jobs:
       # samples themselves did not.
       - run: node scripts/check-samples.mjs
 
+  conformance:
+    runs-on: ubuntu-latest
+    name: conformance against arbundles and turbo-sdk
+    defaults:
+      run:
+        working-directory: conformance
+    steps:
+      - uses: actions/checkout@v4
+      # Node 22, because @ardrive/turbo-sdk@2.1.0 cannot load on Node 18: a
+      # transitive dependency of its Solana stack is ESM only. This pins the
+      # reference, not the package, which the `test` job runs on every version
+      # `engines` names.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # An install, and the only one besides the browser harness: conformance/
+      # has its own package.json and lockfile, so the references it checks
+      # against never reach the package's tree. The root jobs stay install-free.
+      - run: npm ci --no-audit --no-fund
+      # verify.js and standalone-check.js: the type 1 corpus, and the reference
+      # signer cross-verified both ways against arbundles.
+      # type4.js: regenerates the type 4 corpus with turbo-sdk and fails if it
+      # differs from the committed one by a byte.
+      # cross-verify.js: the package's own exports against arbundles' verifier,
+      # both ways, both types, and one-byte tampering refused by both.
+      - run: npm test
+
+  browser:
+    runs-on: ubuntu-latest
+    name: web build in Chromium, Firefox, WebKit, jsdom and Jest
+    defaults:
+      run:
+        working-directory: harness
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # harness/ has its own package.json and lockfile: Playwright, esbuild,
+      # webpack, Vite, Jest and TypeScript are the harness's, never the
+      # package's. It installs the package itself through a file: link, so
+      # every resolution below goes through the real export map.
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium firefox webkit
+      # The type 4 corpus signed in each browser and in jsdom with a
+      # wallet-style signer and no polyfills, byte-identical to turbo-sdk;
+      # turbo-sdk's items verified there; a flipped byte refused. Fails if
+      # Buffer or process exists in the page.
+      - run: npm test
+      # jest-environment-jsdom resolves the `browser` condition too.
+      - run: npm run jest
+      # Which build esbuild, webpack 5 and Vite pick, as the README states it.
+      - run: npm run bundlers
+      # web.d.ts with no Node types, index.d.ts with them.
+      - run: npm run types
+      # The live devnet flow (`npm run devnet`) is not run here: it needs a
+      # funded key, and a workflow input lands in a public run's event payload.
+      # Run it by hand per release; see harness/README.md.
+
+  devnet-script:
+    runs-on: ubuntu-latest
+    name: the devnet script refuses production
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # scripts/ has its own package.json: @solana/web3.js builds the top-up
+      # transfer there, and never reaches the package.
+      - run: npm ci --no-audit --no-fund
+      # Offline. The live run needs a funded devnet key and stays manual, per
+      # release: a key in a workflow input lands in a public run's event payload.
+      - run: node live-solana-devnet.js --check-guards
+      - name: a mainnet RPC and a production host are refused before any request
+        run: |
+          set +e
+          node live-solana-devnet.js --key /dev/null --rpc https://api.mainnet-beta.solana.com; a=$?
+          node live-solana-devnet.js --key /dev/null --upload-url https://upload.ardrive.io; b=$?
+          [ "$a" = "2" ] && [ "$b" = "2" ] || { echo "::error::expected both to exit 2, got $a and $b"; exit 1; }
+
   house-style:
     runs-on: ubuntu-latest
     name: house style

@@ -6,15 +6,24 @@ reference.
 
 ## Does this apply
 
-Signs ANS-104 data items with an **Arweave RSA-4096 JWK** and uploads them to
-Turbo. **Node only. Zero dependencies. Upload only.**
+**A light Turbo client for Node and browsers, with zero dependencies.** It
+signs ANS-104 data items, pays for them and uploads them to Turbo.
 
-**Solana keys work**: `TurboUpload.production({ jwk: secretKey, token: "solana" })`, taking a base58 secret key, a `solana-keygen` JSON array, raw 64 bytes or a 32-byte seed. That is ANS-104 type 4, matching what `turbo-sdk` emits, so ids agree between the two.
+- **Keys and wallets**: an Arweave RSA-4096 JWK (Node), a Solana key (Node:
+  base58, a `solana-keygen` JSON array, 64 bytes or a 32-byte seed), or a
+  Solana wallet's `signMessage` (`signer`, both builds). Solana items are
+  ANS-104 type 4, byte-identical to what `@ardrive/turbo-sdk` emits.
+- **Runtimes**: Node 18.17 and up; browsers, workers and jsdom through the
+  web build, which the `browser` export condition selects. No polyfills.
+- **Paying**: prices, balances, the free quota, reporting a SOL top-up you
+  sent, sharing credits, `paidBy`, Stripe checkout sessions.
+- **Large items**: chunked uploads, from bytes or from a stream.
 
-**Stop and use `@ardrive/turbo-sdk`** if the task needs a key that is not Arweave or Solana
-(Ethereum, KYVE, Polygon), a browser or injected wallet, buying credits
-or any payment flow, folder or ArDrive abstractions, packing your own bundles,
-or streaming a file too large to hold in memory.
+**Stop and use `@ardrive/turbo-sdk`** if the task needs a key that is not
+Arweave or Solana (Ethereum, KYVE, Polygon), ArNS, x402, folder or ArDrive
+abstractions, packing your own bundles, or a client that builds and sends
+the SOL transfer itself. This package reports a transfer; your wallet or RPC
+library sends it.
 
 Both can be installed together. They share no state.
 
@@ -34,6 +43,24 @@ Use `.production()` and `.testnet()` rather than spreading `PRODUCTION` or
 `gatewayUrl`, which are not constructor options and are rejected.
 
 `client.address` is the wallet address, as a synchronous property.
+
+## Sign with a wallet
+
+```js
+import { TurboUpload } from "@ardrive/turbo-upload";
+
+export async function upload(wallet, bytes) {
+  // A Solana wallet adapter works as is: { publicKey, signMessage }.
+  const client = TurboUpload.production({ signer: wallet });
+  return client.upload({ data: bytes, tags: [{ name: "Content-Type", value: "image/png" }] });
+}
+```
+
+**Use `signAsync()`, not `sign()`, with a signer**: `sign()` is synchronous and
+throws for one. Every wallet signature is verified before upload, and a
+wallet that cannot sign data items (a Ledger) throws `TurboSignerError` with
+nothing uploaded. In a browser with no WebCrypto Ed25519 (jsdom, React
+Native) the signer also needs `verify(message, signature, publicKey)`.
 
 ## Upload one thing
 
@@ -70,12 +97,39 @@ fail the same way, and earlier ones are already paid for and permanent.
 ## Know the cost before uploading
 
 ```js
-const item = client.sign({ data, tags });
-const { winc } = await client.getUploadCost(item.binary.length);
+const size = client.getDataItemSize({ data, tags });
+const { winc } = await client.getUploadCost(size);
 ```
 
-Price `item.binary.length`, not the payload length: a signed item is about 1044
-bytes larger than its data.
+Price the signed item's size, not the payload length: a signed item is 1044
+bytes larger than its data for an Arweave key and 116 for a Solana one, before
+tags.
+
+## Pay for someone else's upload
+
+```js
+await payer.shareCredits({ approvedAddress: uploader.address, approvedWincAmount: winc, expiresBySeconds: 3600 });
+await uploader.upload({ data, paidBy: payer.address });
+```
+
+**`paidBy` is one address.** A list is refused before signing. The free quota
+belongs to the signing address, so a fresh uploader key starts with its own,
+and a `paidBy` upload draws none of it.
+
+## Top up with SOL
+
+Send the transfer yourself, to `await client.getFundingAddress()`, wait for
+`finalized`, then `await client.submitFundTransaction(signature)`. The answer's
+`status` is `"confirmed"`, `"pending"` (submit again later) or `"failed"`.
+Submitting twice credits once.
+
+## Upload something large
+
+`upload()` sends an item over 10 MiB in 5 MiB chunks without being asked.
+For data you do not want in memory, `uploadStream({ streamFactory, size })`
+reads the stream twice, so `streamFactory` returns a new stream each call.
+If the service does not finalize a chunked upload, it ends in
+`TurboChunkedUploadError`, carrying the `uploadStatus` the service reported.
 
 ## Record the id before it exists
 
@@ -117,7 +171,7 @@ const res = await fetch(`${PRODUCTION.gatewayUrl}/${id}`, { redirect: "follow" }
 An id is not a URL. Any gateway serving Arweave returns the item at
 `<gateway>/<id>`, and `PRODUCTION.gatewayUrl` is a sensible default rather than
 the only answer. Gateways differ in what they have indexed and a busy one will
-rate limit, so a reader that matters should try more than one. Follow
+rate limit, so a reader that matters tries more than one. Follow
 redirects: a gateway may serve HTML from a per-transaction subdomain.
 
 ## Bound the call
@@ -134,7 +188,7 @@ await client.upload({ data, tags, signal });
 
 Lowering `timeoutMs` shortens each attempt, not the call.
 
-## The four things that get written wrong
+## The five things that get written wrong
 
 **1. `sign()` then `upload()` charges twice.** RSA-PSS draws a fresh random
 salt per signature, so signing the same payload twice produces different bytes
@@ -154,6 +208,10 @@ names the correct key.
 **4. Production is the default.** A bare `new TurboUpload({ jwk })` talks to
 mainnet.
 
+**5. The web build returns `Uint8Array`, the Node build `Buffer`.** Code that
+calls `.toString("hex")` on `item.binary` works in Node and breaks in a
+browser. Use `item.idB64Url` for the id in both.
+
 ## Errors
 
 Every one extends `TurboError`, so `catch (e) { if (e instanceof TurboError) }`
@@ -163,6 +221,8 @@ catches all of them.
 |---|---|---|
 | `TurboPaymentError` | tell "cannot pay" from a transient failure. **Retrying never helps** | `status`, `body` |
 | `TurboVerificationError` | detect an id that is not the one you signed. **Never swallow this** | `expectedId`, `receivedId` |
+| `TurboSignerError` | tell a wallet that cannot sign data items (a Ledger) from a network failure. Nothing was uploaded | `cause` |
+| `TurboChunkedUploadError` | report a chunked upload that did not finalize | `uploadId`, `uploadStatus` |
 | `TurboTimeoutError` | tell a slow endpoint from a broken one | `endpoint`, `timeoutMs` |
 | `TurboNetworkError` | retry a connection-level failure | `endpoint`, `cause` |
 | `TurboHTTPError` | handle any other non-2xx | `status`, `endpoint`, `body` |
@@ -206,6 +266,7 @@ items outside the client.
 | `signMessage`, `verifyMessage` | raw RSA-PSS over arbitrary bytes |
 | `idFromSignature` | `SHA-256(signature)`, which is how an id is derived |
 | `parseJwk`, `ownerFromJwk`, `addressFromOwner`, `publicKeyFromOwner` | key and address handling |
+| `createSolanaSigner` | a Solana key in the wallet shape, for tests and scripts (Node build) |
 | `PSS_SALT_LENGTH_BYTES`, `MAX_TAG_BYTES`, `MIN_ITEM_SIZE`, `SIGNATURE_TYPE_ARWEAVE` | protocol constants |
 | `DEFAULT_TIMEOUT_MS`, `DEFAULT_RETRY` | the client's defaults, for reading |
 | `PRODUCTION`, `TESTNET` | endpoint records |

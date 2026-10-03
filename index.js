@@ -1,7 +1,8 @@
 "use strict";
 /**
- * @ardrive/turbo-upload, sign ANS-104 data items with an Arweave JWK and upload
- * them to a Turbo upload service. Zero runtime dependencies.
+ * @ardrive/turbo-upload, the Node build: sign ANS-104 data items with an
+ * Arweave JWK, a Solana key or a wallet-style signer, and upload them to Turbo.
+ * Zero runtime dependencies. The browser build is web.js.
  *
  * NOTE ON THE SHAPE OF THIS FILE. Everything is destructured into a local
  * identifier and re-exported as SHORTHAND. That is not a style choice: Node
@@ -20,6 +21,7 @@
 const { TurboUpload } = require("./src/client.js");
 const { PRODUCTION, TESTNET } = require("./src/endpoints.js");
 const { parseJwk } = require("./src/jwk.js");
+const { createSolanaSigner } = require("./src/ed25519.js");
 const { DEFAULT_TIMEOUT_MS, DEFAULT_RETRY } = require("./src/http.js");
 
 const {
@@ -32,6 +34,8 @@ const {
   TurboHTTPError,
   TurboPaymentError,
   TurboVerificationError,
+  TurboSignerError,
+  TurboChunkedUploadError,
 } = require("./src/errors.js");
 
 const {
@@ -77,7 +81,8 @@ module.exports = {
   verifyMessage,
   idFromSignature,
 
-  // Keys
+  // Keys and signers
+  createSolanaSigner,
   parseJwk,
   ownerFromJwk,
   addressFromOwner,
@@ -102,4 +107,6 @@ module.exports = {
   TurboHTTPError,
   TurboPaymentError,
   TurboVerificationError,
+  TurboSignerError,
+  TurboChunkedUploadError,
 };

@@ -1,6 +1,7 @@
 /**
- * @ardrive/turbo-upload, sign ANS-104 data items with an Arweave JWK and upload
- * them to a Turbo upload service. Zero runtime dependencies.
+ * @ardrive/turbo-upload, the Node build: sign ANS-104 data items with an
+ * Arweave JWK, a Solana key or a wallet-style signer, and upload them to Turbo.
+ * Zero runtime dependencies. The browser build's declarations are web.d.ts.
  *
  * Hand-written declarations: no `typescript` build step, no `@types/*`, nothing
  * in `dependencies`.
@@ -56,12 +57,40 @@ export interface RetryConfig {
   retryStatuses: number[];
 }
 
+/**
+ * A wallet-style signer: the shape of a Solana wallet adapter. Pass the adapter
+ * itself; its other properties are ignored.
+ *
+ * `signMessage` is called once per item with the 96 ASCII bytes of the hex of
+ * the item's deep hash, and must sign exactly those bytes. Its signature is
+ * verified before it is used: a wallet that signs anything else (a prefixed
+ * message, a hardware wallet's off-chain format) throws TurboSignerError and
+ * nothing is uploaded.
+ */
+export interface SolanaWalletSigner {
+  /** 32 bytes, a base58 string, or an object with toBytes() (web3.js) or toBuffer(). */
+  publicKey: Uint8Array | string | number[] | { toBytes(): Uint8Array } | { toBuffer(): Uint8Array };
+  /** Sign the bytes given, raw. A wallet that answers `{ signature }` (Phantom's provider) works too. */
+  signMessage(message: Uint8Array): Promise<Uint8Array | { signature: Uint8Array }> | Uint8Array | { signature: Uint8Array };
+  /**
+   * Ed25519 verification, in the order `(message, signature, publicKey)`. Optional in Node,
+   * which verifies with node:crypto; the web build uses it when the runtime has no WebCrypto Ed25519.
+   */
+  verify?(message: Uint8Array, signature: Uint8Array, publicKey: Uint8Array): boolean | Promise<boolean>;
+}
+
 export interface TurboUploadOptions {
   /**
    * The signing key. An Arweave JWK by default, or a Solana secret key when
-   * `token` is `"solana"`. Validated in the constructor either way.
+   * `token` is `"solana"`. Validated in the constructor either way. Pass this
+   * or `signer`, not both.
    */
-  jwk: JWKInput | SolanaKeyInput;
+  jwk?: JWKInput | SolanaKeyInput;
+  /**
+   * A wallet-style signer, in place of `jwk`. Signs Solana items (type 4), so
+   * `token` defaults to "solana". Use `signAsync()` rather than `sign()`.
+   */
+  signer?: SolanaWalletSigner;
   /** Upload service base URL. Default https://upload.ardrive.io */
   uploadUrl?: string;
   /** Payment service base URL. Default https://payment.ardrive.io */
@@ -71,7 +100,7 @@ export interface TurboUploadOptions {
   /** Partial retry config, merged over the defaults. `false` disables retrying. */
   retry?: Partial<RetryConfig> | false;
   /**
-   * Which key `jwk` holds. Default "arweave".
+   * Which key `jwk` holds. Default "arweave", or "solana" with `signer`.
    *
    * "solana" signs ANS-104 type 4, matching what `@ardrive/turbo-sdk` emits for
    * the same token, so ids agree between the two. Any other value throws a
@@ -95,10 +124,58 @@ export interface SignOptions {
   anchor?: string | Buffer | Uint8Array;
 }
 
-export interface UploadOptions extends SignOptions {
+export interface UploadOptions extends SignOptions, ChunkingOptions {
   signal?: AbortSignal;
   /** Overrides the client's timeoutMs for this call. */
   timeoutMs?: number;
+  /**
+   * ONE address whose credits pay for this upload, sent as `x-paid-by`. That
+   * address must first have shared credits with the signer (see
+   * `shareCredits`). A list is refused: the service answers 402 to one.
+   */
+  paidBy?: string;
+}
+
+export interface UploadSignedOptions extends ChunkingOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  /** ONE paying address, as in UploadOptions. */
+  paidBy?: string;
+}
+
+/** How an upload is sent: "auto" chunks items over two chunks; "force" always; "disabled" never. */
+export type ChunkingMode = "auto" | "force" | "disabled";
+
+export interface ChunkingOptions {
+  chunking?: ChunkingMode;
+  /** Bytes per chunk, 5 MiB (the default) to 500 MiB. */
+  chunkSize?: number;
+  /** Chunks in flight at once, default 5. Also bounds the memory a stream upload holds. */
+  chunkConcurrency?: number;
+  /** Called after each chunk lands, and once for a single POST. */
+  onProgress?: (progress: { processedBytes: number; totalBytes: number; uploadId?: string }) => void;
+}
+
+export interface UploadStreamOptions extends ChunkingOptions {
+  /** Called TWICE: once to hash the data, once to send it. Must give the same bytes both times. */
+  streamFactory: () => AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>;
+  /** The data's length in bytes. */
+  size: number;
+  tags?: Tag[];
+  target?: string | Uint8Array;
+  anchor?: string | Uint8Array;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  paidBy?: string;
+}
+
+export interface DataItemSizeOptions {
+  /** The payload, or its length as `dataSize`: exactly one of the two. */
+  data?: Buffer | Uint8Array | string;
+  dataSize?: number;
+  tags?: Tag[];
+  target?: string | Buffer | Uint8Array;
+  anchor?: string | Buffer | Uint8Array;
 }
 
 export interface SignedDataItem {
@@ -121,6 +198,8 @@ export interface UploadResult {
   owner: string;
   /** Size of the signed item on the wire, in bytes. */
   byteCount: number;
+  /** Set when the item went in chunks: the service's multipart upload id. */
+  uploadId?: string;
   /** Winston credits charged. Absent or "0" for a free-tier upload. */
   winc?: string;
   dataCaches?: string[];
@@ -180,17 +259,26 @@ export declare class TurboUpload {
   /** A client pointed at production. */
   static production(options: Omit<TurboUploadOptions, "uploadUrl" | "paymentUrl"> & Partial<TurboUploadOptions>): TurboUpload;
 
-  /** The signing wallet's Arweave address: base64url(SHA-256(owner)). */
+  /** The signing address: base64url(SHA-256(owner)) for Arweave, base58 for Solana. */
   readonly address: string;
-  /** The 512-byte RSA modulus as it appears on the wire. */
+  /** The owner field as it appears on the wire: the 512-byte RSA modulus, or the 32-byte Ed25519 public key. */
   readonly owner: Buffer;
+  /** 1 (Arweave) or 4 (Solana). */
+  readonly signatureType: number;
+  readonly token: TurboToken;
   readonly uploadUrl: string;
   readonly paymentUrl: string;
   readonly timeoutMs: number;
   readonly retry: RetryConfig;
 
-  /** Sign a data item without uploading it. */
+  /** Sign a data item without uploading it. Needs `jwk`; a `signer` client uses signAsync(). */
   sign(options: SignOptions): SignedDataItem;
+  /** Sign through whichever signer this client has. With a wallet signer, the signature is verified first. */
+  signAsync(options: SignOptions): Promise<SignedDataItem>;
+  /** The byte length of the signed item these options would produce. Price this, not the payload. */
+  getDataItemSize(options: DataItemSizeOptions): number;
+  /** Sign and upload data from a stream, chunked when large, without holding the data in memory. */
+  uploadStream(options: UploadStreamOptions): Promise<UploadResult>;
   /** Sign and upload. Throws if the service returns an id we did not produce. */
   upload(options: UploadOptions): Promise<UploadResult>;
   /**
@@ -200,10 +288,7 @@ export declare class TurboUpload {
    * calling `sign()` and then `upload()` signs twice and yields two different
    * ids.
    */
-  uploadSigned(
-    item: SignedDataItem | Buffer | Uint8Array,
-    options?: { signal?: AbortSignal; timeoutMs?: number },
-  ): Promise<UploadResult>;
+  uploadSigned(item: SignedDataItem | Buffer | Uint8Array, options?: UploadSignedOptions): Promise<UploadResult>;
   /** Price in winc for a given raw byte count. */
   getUploadCost(bytes: number, options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<UploadCost>;
   /** Credit balance. An unknown wallet reports zeros rather than throwing. */
@@ -214,6 +299,114 @@ export declare class TurboUpload {
   getFreeUploadLimitBytes(options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<number>;
   /** Verify a serialized item. `strictSaltLength` also pins the PSS salt length. */
   verify(binary: Buffer | Uint8Array, options?: { strictSaltLength?: boolean }): boolean;
+  /** What `tokenAmount` base units of this client's token buy, in winc (lamports for Solana). */
+  getWincForToken(tokenAmount: IntegerAmount, options?: CallOptions): Promise<WincForToken>;
+  /** The payment service's /v1/info. */
+  getPaymentInfo(options?: CallOptions): Promise<PaymentInfo>;
+  /** Where a top-up in this client's token is sent, read live from the payment service. */
+  getFundingAddress(options?: CallOptions): Promise<string>;
+  /** Free-tier bytes left for an address as signer (default: this client's). */
+  getFreeQuota(options?: CallOptions & { address?: string }): Promise<FreeQuota>;
+  /**
+   * Report a top-up transaction already sent to getFundingAddress() and finalized.
+   * Submitting the same id twice is safe: nothing is credited twice.
+   */
+  submitFundTransaction(txId: string, options?: CallOptions): Promise<FundTransactionResult>;
+  /** Approve another address to spend up to `approvedWincAmount` of this client's credits. */
+  shareCredits(options: ShareCreditsOptions): Promise<CreditShareApproval>;
+  /** A Stripe checkout session that buys credits. */
+  createCheckoutSession(options: CheckoutSessionOptions): Promise<CheckoutSession>;
+}
+
+/* ------------------------------------------------------------------ *
+ * Payments                                                            *
+ * ------------------------------------------------------------------ */
+
+/** An integer amount: a number, a bigint, or a string of digits. */
+export type IntegerAmount = number | bigint | string;
+
+export interface CallOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
+
+export interface WincForToken {
+  /** What the amount buys, in winc, after fees. */
+  winc: string;
+  fees: unknown[];
+  /** The amount priced, in base units (lamports for Solana). */
+  actualTokenAmount: string;
+  equivalentWincTokenAmount: string;
+}
+
+export interface PaymentInfo {
+  version?: string;
+  /** Funding address per token. */
+  addresses?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+export interface FreeQuota {
+  /** Free-tier bytes left for this address as SIGNER. null when the service reports no limit. */
+  bytesRemaining: number | null;
+  address: string;
+}
+
+export interface FundTransactionResult {
+  id: string;
+  /** "confirmed": credited. "pending": not seen yet, submit again later. "failed": not creditable. */
+  status: "confirmed" | "pending" | "failed";
+  quantity?: string;
+  owner?: string;
+  winc?: string;
+  token?: string;
+  block?: number;
+  recipient?: string;
+  message?: string;
+}
+
+export interface ShareCreditsOptions extends CallOptions {
+  /** The address that may spend the credits, uploading with `paidBy: client.address`. */
+  approvedAddress: string;
+  approvedWincAmount: IntegerAmount;
+  /** The approval expires after this many seconds, and the unused part returns. */
+  expiresBySeconds?: number;
+}
+
+export interface CreditShareApproval {
+  approvalDataItemId: string;
+  approvedAddress: string;
+  payingAddress?: string;
+  approvedWincAmount: string;
+  usedWincAmount?: string;
+  expirationDate?: string;
+  [key: string]: unknown;
+}
+
+export interface CheckoutSessionOptions extends CallOptions {
+  /** In the currency's smallest unit: cents for "usd", so 1000 is $10.00. */
+  amount: IntegerAmount;
+  /** Default "usd". */
+  currency?: string;
+  /** Who is credited. Default: this client's address. */
+  owner?: string;
+  uiMode?: "hosted" | "embedded";
+  promoCodes?: string[];
+  successUrl?: string;
+  cancelUrl?: string;
+  returnUrl?: string;
+}
+
+export interface CheckoutSession {
+  winc: string;
+  adjustments: unknown[];
+  fees: unknown[];
+  /** Open this to pay. */
+  url?: string;
+  id: string;
+  client_secret?: string;
+  actualPaymentAmount: number;
+  quotedPaymentAmount: number;
 }
 
 /* ------------------------------------------------------------------ *
@@ -307,6 +500,16 @@ export declare function verifyMessage(
 /** id = SHA-256(signature). */
 export declare function idFromSignature(signature: Buffer | Uint8Array): Buffer;
 
+/**
+ * A wallet-style signer over a Solana key this process holds, the same shape as
+ * a browser wallet adapter. Takes every form `jwk` does with token "solana".
+ */
+export declare function createSolanaSigner(secretKey: SolanaKeyInput): Readonly<{
+  publicKey: Uint8Array;
+  signMessage(message: Uint8Array): Promise<Uint8Array>;
+  verify(message: Uint8Array, signature: Uint8Array, publicKey?: Uint8Array): boolean;
+}>;
+
 /** Accept a JWK as an object or a JSON string; throws a clear error otherwise. */
 export declare function parseJwk(input: JWKInput): ArweaveJWK;
 
@@ -354,13 +557,13 @@ export declare class TurboValidationError extends TurboError {
 }
 /** No HTTP response at all: DNS, TLS, connection reset. */
 export declare class TurboNetworkError extends TurboError {
-  constructor(init: { endpoint: string; method: string; cause?: unknown });
+  constructor(message: string, init?: { endpoint?: string; method?: string; cause?: unknown });
   readonly endpoint?: string;
   readonly method?: string;
 }
 /** The request exceeded timeoutMs, or the caller's signal aborted it. */
 export declare class TurboTimeoutError extends TurboError {
-  constructor(init: { endpoint: string; method: string; timeoutMs: number; cause?: unknown });
+  constructor(message: string, init?: { endpoint?: string; method?: string; timeoutMs?: number; cause?: unknown });
   readonly endpoint?: string;
   readonly method?: string;
   readonly timeoutMs?: number;
@@ -381,6 +584,8 @@ export declare class TurboHTTPError extends TurboError {
   readonly method: string;
   /** Parsed JSON when the response was JSON, otherwise raw text. */
   readonly body: unknown;
+  /** Set when the request was part of a chunked upload. */
+  readonly uploadId?: string;
 }
 /**
  * The service refused the upload because the wallet cannot pay: HTTP 402.
@@ -399,8 +604,30 @@ export declare class TurboPaymentError extends TurboHTTPError {}
  * that were signed.
  */
 export declare class TurboVerificationError extends TurboError {
-  constructor(init: { expectedId: string; receivedId: string });
+  constructor(message: string, init?: { expectedId?: string; receivedId?: string; endpoint?: string });
   readonly expectedId?: string;
   readonly receivedId?: string;
+  readonly endpoint?: string;
+}
+
+/**
+ * A wallet-style signer could not produce a usable signature: signMessage
+ * threw, returned something that is not 64 bytes, or returned a signature
+ * that does not verify. Nothing was uploaded. Hardware wallets are the usual
+ * cause: they cannot sign data items.
+ */
+export declare class TurboSignerError extends TurboError {
+  constructor(message: string, options?: { cause?: unknown });
+}
+
+/**
+ * A chunked upload did not finalize: the service reported INVALID (or another
+ * failed state), or the wait ran out. UNDERFUNDED is a TurboPaymentError
+ * instead. `uploadStatus` is the status the service reported.
+ */
+export declare class TurboChunkedUploadError extends TurboError {
+  constructor(message: string, init?: { uploadId?: string; uploadStatus?: string; endpoint?: string; cause?: unknown });
+  readonly uploadId?: string;
+  readonly uploadStatus?: string;
   readonly endpoint?: string;
 }

@@ -1,6 +1,6 @@
 const ref = require("./reference-signer.js");
 const arb = require("./arbundles.js");
-const jwk = require("./test-key.json");
+const jwk = require("./key.js").loadKey();
 (async () => {
   const owner = ref.ownerFromJwk(jwk);
   const b = ref.createDataItem({ data: Buffer.from("x"), owner, target: Buffer.from("target--------------------------") });

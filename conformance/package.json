@@ -1,0 +1,21 @@
+{
+  "name": "turbo-upload-conformance",
+  "private": true,
+  "description": "Not published. Cross-checks @ardrive/turbo-upload against the implementations it must agree with: @dha-team/arbundles for type 1, @ardrive/turbo-sdk for type 4. Its dependencies are this directory's, never the package's.",
+  "license": "Apache-2.0",
+  "scripts": {
+    "verify": "node verify.js && node standalone-check.js",
+    "type4:check": "node type4.js",
+    "type4:generate": "node type4.js --write",
+    "cross": "node cross-verify.js",
+    "test": "npm run verify && npm run type4:check && npm run cross && npm run wire",
+    "wire": "node wire-parity.js"
+  },
+  "devDependencies": {
+    "@ardrive/turbo-sdk": "2.1.0",
+    "@dha-team/arbundles": "1.0.4"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

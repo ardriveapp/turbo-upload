@@ -15,7 +15,10 @@ const { Buffer } = require("node:buffer");
 const ref = require("./reference-signer.js");
 const arb = require("./arbundles.js");
 const vectorsFile = require("./vectors.json");
-const jwk = require("./test-key.json");
+const jwk = require("./key.js").loadKey();
+// The corpus pins deep hashes over ITS OWN public modulus, so the deterministic
+// checks use that, and only signing uses `jwk`. Any key signs.
+const CORPUS_OWNER = Buffer.from(vectorsFile.key.owner_b64url, "base64url");
 
 const sha256 = (b) => crypto.createHash("sha256").update(b).digest();
 const hex = (b) => Buffer.from(b).toString("hex");
@@ -103,7 +106,7 @@ function firstDiff(a, b) {
       tags: inp.tags,
       target: inp.target_b64url ?? undefined,
       anchor: inp.anchor_utf8 ?? undefined,
-      owner: ref.ownerFromJwk(jwk),
+      owner: CORPUS_OWNER,
     };
 
     // --- A. deterministic reproduction ---
@@ -148,7 +151,7 @@ function firstDiff(a, b) {
     let oursUnderArb = "n/a", arbUnderOurs = "n/a", sampleUnderOurs = "n/a", sampleUnderArb = "n/a", idsAgree = "n/a";
     try {
       // ours -> arbundles
-      const mine = ref.signDataItem(jwk, opts);
+      const mine = ref.signDataItem(jwk, { ...opts, owner: ref.ownerFromJwk(jwk) });
       oursUnderArb = await arb.DataItem.verify(Buffer.from(mine.binary));
       check(v.name, "our signed item verifies under arbundles", oursUnderArb, true);
 

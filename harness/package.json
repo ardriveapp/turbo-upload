@@ -1,0 +1,30 @@
+{
+  "name": "turbo-upload-harness",
+  "private": true,
+  "description": "Not published. Runs the web build in headless Chromium, Firefox and WebKit, in jsdom and under Jest, through the bundlers the README names, and type-checks both declaration files. Its dependencies are this directory's, never the package's.",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node run.mjs",
+    "devnet": "node run.mjs --devnet",
+    "bundlers": "node bundlers.mjs",
+    "types": "tsc -p types/tsconfig.json && tsc -p types/tsconfig.node16.json",
+    "jest": "jest --config jest.config.cjs"
+  },
+  "devDependencies": {
+    "@ardrive/turbo-upload": "file:..",
+    "@noble/ed25519": "3.2.0",
+    "@noble/hashes": "2.4.0",
+    "@types/node": "26.6.3",
+    "esbuild": "0.28.2",
+    "jest": "30.5.2",
+    "jest-environment-jsdom": "30.5.2",
+    "jsdom": "29.1.1",
+    "playwright": "1.63.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.2",
+    "webpack": "5.111.1"
+  }
+}
