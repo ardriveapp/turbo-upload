@@ -2,8 +2,8 @@
 
 A light Turbo client for Node and browsers. Sign
 [ANS-104](https://github.com/ArweaveTeam/arweave-standards/blob/master/ans/ANS-104.md)
-data items with an Arweave JWK, a Solana key or a Solana wallet, pay for them,
-and upload them to a Turbo upload service.
+data items with an Arweave JWK, a Solana key, a Solana wallet or an EVM
+account, pay for them, and upload them to a Turbo upload service.
 
 **Zero runtime dependencies.** Not "few". Zero. `dependencies`,
 `peerDependencies` and `optionalDependencies` are all empty, and a test in the
@@ -62,7 +62,7 @@ nothing else in it.
 
 ## What it does
 
-- Signs ANS-104 data items with an Arweave JWK (type 1, RSA-4096 / RSA-PSS-SHA256), a Solana key, or a Solana wallet's `signMessage` (type 4, Ed25519)
+- Signs ANS-104 data items with an Arweave JWK (type 1, RSA-4096 / RSA-PSS-SHA256), a Solana key, or a Solana wallet's `signMessage` (type 4, Ed25519), or through an EVM account or wallet you sign with in viem (type 3, secp256k1)
 - Runs in Node and in browsers, workers and jsdom, with no polyfills
 - Uploads them to a Turbo upload service, in one request or in chunks, from bytes or from a stream
 - Prices uploads, reads balances and the free quota, submits SOL top-ups, shares credits, pays with `x-paid-by`, and opens Stripe checkout sessions
@@ -71,14 +71,15 @@ nothing else in it.
 
 ## Use `@ardrive/turbo-sdk` instead if you need
 
-Ethereum, KYVE or Polygon keys to sign data items · signed or chunked x402
-uploads · ArNS · the CLI, folder uploads, or ArDrive drive abstractions ·
-packing your own bundles · a client that builds and sends the SOL transfer
-for you.
+An Ethereum private key without an EVM library to sign with · KYVE or
+Polygon keys · topping up with ETH or USDC · signed or chunked x402 uploads ·
+ArNS · the CLI, folder uploads, or ArDrive drive abstractions · packing your
+own bundles · a client that builds and sends the SOL transfer for you.
 
-If you sign with an Arweave or Solana key or wallet and upload bytes, this
-package does it and brings nothing with it. So does paying from an EVM wallet
-over x402 when the service signs the item (§ x402 uploads).
+If you sign with an Arweave or Solana key or wallet, or with an EVM account
+through viem, and upload bytes, this package does it and brings nothing with
+it. So does paying from an EVM wallet over x402 when the service signs the
+item (§ x402 uploads).
 
 ---
 
@@ -134,6 +135,91 @@ Use `signAsync()` with a signer: `sign()` is synchronous, and a wallet is not.
 key you hold in the same shape, so code written against a wallet runs in
 tests and scripts unchanged.
 
+## EVM signers
+
+```js
+import { privateKeyToAccount } from "viem/accounts";
+import { recoverPublicKey } from "viem";
+import { TurboUpload } from "@ardrive/turbo-upload";
+
+const account = privateKeyToAccount(process.env.EVM_PRIVATE_KEY);
+const client = TurboUpload.testnet({ signer: { ...account, recoverPublicKey }, token: "base-eth" });
+
+const { id } = await client.upload({ data: new TextEncoder().encode("hello from an EVM account") });
+console.log(client.address, id);
+```
+
+An EVM signer signs **ANS-104 signature type 3**, the type
+`@ardrive/turbo-sdk` emits for an Ethereum key or wallet, so the two produce
+identical ids for identical content. `token` is `"ethereum"`, `"base-eth"` or
+`"base-usdc"`. It names the token prices and balances are read in, and the
+signature is the same for all three. `client.address` is the EIP-55 `0x`
+address.
+
+**You bring the EVM library, and this is why.** Type 3 is secp256k1 ECDSA.
+Node cannot sign a digest it is handed with it, and WebCrypto has no secp256k1
+at all, so the only way for this package to sign with a raw key would be to
+carry its own elliptic-curve code for private keys. It does not. Your EVM
+library signs, and its `recoverPublicKey` does the curve arithmetic that
+checks the result. The names are viem's, so a viem account plus viem's
+`recoverPublicKey` is a signer as it is. In a browser, wrap a `WalletClient`:
+
+```js
+import { recoverPublicKey } from "viem";
+import { TurboUpload } from "@ardrive/turbo-upload";
+
+export function evmClient(walletClient, address) {
+  const signer = {
+    address,
+    signMessage: ({ message }) => walletClient.signMessage({ account: address, message }),
+    recoverPublicKey,
+  };
+  return TurboUpload.testnet({ signer, token: "base-eth" });
+}
+```
+
+The package does the rest itself: the deep hash, the EIP-191 personal message
+over its 48 raw bytes, Keccak-256, the 65-byte layout and the EIP-55 address.
+
+- **A browser wallet has no public key to give**, and the item needs it as its
+  owner. Without `signer.publicKey`, the client asks the wallet to sign
+  `sign this message to connect to your account` once, the text turbo-sdk
+  uses, recovers the key from that signature, and checks it belongs to
+  `signer.address`. `client.owner` is set then. A viem account carries its
+  public key, so it is not asked.
+- **`signMessage` gets `{ message: { raw } }`**, the 48 raw bytes of the
+  item's deep hash, once per item. A wallet that signs the hex text of those
+  bytes instead produces a valid signature over the wrong message.
+- **Every signature is checked before it is used.** A `v` of 0 or 1 is
+  rewritten as 27 or 28. A high `s`, and any length but 65 bytes, are refused.
+  The key recovered from the signature must be the item's owner. Any failure
+  is `TurboSignerError`, and nothing is uploaded.
+
+**A smart-contract wallet cannot sign data items.** A multisig, a passkey
+account or any other ERC-1271 or ERC-6492 account answers `personal_sign`
+with something that is not a 65-byte signature from an externally owned key,
+so it fails here with `TurboSignerError` before anything is uploaded or
+charged. To pay from one, use an x402 upload instead (§ x402 uploads): the
+service signs the data item, and the wallet only authorizes a payment.
+
+**Verifying.** `verifyDataItem(binary, { recoverPublicKey })` checks a type 3
+item, in both builds, and answers with a promise. On a client with an EVM
+signer, `client.verify(binary)` uses the signer's own `recoverPublicKey`.
+Without one, a type 3 item throws rather than getting an answer for an item
+nothing checked. **This is a change from 0.5.0**, where `verifyDataItem`
+returned `false` for every type 3 item, valid or not.
+
+By default it accepts what arbundles accepts, and arbundles ignores the `v`
+byte entirely: any of its 256 values verifies, so the same content signed by
+the same key has up to 255 more valid ids. `{ strictV: true }` refuses all of
+them but the original: `v` must be 27 or 28 and must be the one that recovers
+the owner. Items this package signs pass both.
+
+**Paying.** `getWincForToken` (in wei, or USDC base units for
+`"base-usdc"`), `getBalance`, `getFreeQuota`, `getFundingAddress` and
+`shareCredits` send what turbo-sdk sends for the same key, and the free quota
+is the `0x` address's. Reporting an ETH or USDC top-up is not covered yet.
+
 ## In the browser
 
 The package has a second build, `web.js`, for browsers, workers and jsdom. It
@@ -167,7 +253,7 @@ the runtime has none, as in jsdom or React Native. A wrapper over
 `TurboSignerError` rather than skipping the check.
 
 In the web build, `verify()` and `verifyDataItem()` return a promise and check
-type 4 items only.
+type 4 and type 3 items only.
 
 ## Paying for uploads
 
@@ -319,8 +405,8 @@ export const x402Signer = (walletClient, account) => ({
 ```
 
 This package builds the typed data, the payment and the `X-PAYMENT` header,
-and does no secp256k1 or keccak itself, so it cannot check the signature: the
-service does. A deployed smart-contract wallet works: the service checks its
+and does no secp256k1 itself, so it cannot check the signature: the service
+does. A deployed smart-contract wallet works: the service checks its
 signature through ERC-1271 (tested paid on Base Sepolia with a Coinbase Smart
 Wallet). A smart account that is not deployed yet signs with an ERC-6492
 wrapper, which the service refuses with a `402` and does not charge for; the
@@ -371,13 +457,13 @@ exercise chunking with a small item, send it with `chunking: "force"`.
 | | tested |
 |---|---|
 | Node | 18.17, 18, 20, 22, 24 (the whole suite, in CI) |
-| Browsers | Chromium, Firefox and WebKit through Playwright: the type 4 corpus with no polyfills in CI, and the testnet flow by hand |
+| Browsers | Chromium, Firefox and WebKit through Playwright: the type 4 and type 3 corpora with no polyfills in CI, and the testnet flow by hand |
 | jsdom | jsdom directly, and Jest's `jest-environment-jsdom` |
 | Bundlers | esbuild, webpack 5, Vite (see § In the browser) |
-| Keys | Arweave JWK (Node), Solana key (Node), Solana wallet signer (both builds) |
+| Keys | Arweave JWK (Node), Solana key (Node), Solana wallet signer (both builds), EVM signer for type 3 (both builds) |
 | x402 | an EVM signer pays USDC for the unsigned route (both builds); the service signs the item |
 
-Ethereum, KYVE and Polygon keys cannot sign data items in either build.
+A raw Ethereum private key, KYVE and Polygon keys cannot sign data items in either build.
 
 ## Coming from `@ardrive/turbo-sdk`
 
@@ -410,7 +496,7 @@ What changes beyond the call:
 | `dataItemOpts.paidBy` | `paidBy`, one address |
 | `getBalance()` returns a signed-in account | `getBalance()` returns zeros for an unknown wallet, because the service answers `404` |
 | errors arrive as `fetch failed` | typed errors that name the endpoint, the status and the method |
-| any supported token | Arweave JWKs, Solana keys and Solana wallets. Anything else throws at construction |
+| any supported token | Arweave JWKs, Solana keys, Solana wallets and EVM signers. Anything else throws at construction |
 | `uploadRawX402Data({ data, tags, maxMUSDCAmount })` on an EVM client | `uploadUnsignedX402({ data, tags, signer, maxUsdc })`, no client and no key that signs items |
 
 **Keep turbo-sdk** for the cases in § Use `@ardrive/turbo-sdk` instead if you need. Nothing stops both being
@@ -423,12 +509,12 @@ installed; they share no state.
 | option | default | notes |
 |---|---|---|
 | `jwk` | | Arweave JWK, **an object or a JSON string**, or a Solana key with `token: "solana"`. Node build only |
-| `signer` | | a wallet-style signer, in place of `jwk`. See § Wallet signers |
+| `signer` | | a wallet-style signer, in place of `jwk`. See § Wallet signers and § EVM signers |
 | `uploadUrl` | `https://upload.ardrive.io` | |
 | `paymentUrl` | `https://payment.ardrive.io` | |
 | `timeoutMs` | `60000` | **per request, not per call**. See § Bounding a call |
 | `retry` | `{retries:3, minDelayMs:500, maxDelayMs:8000, retryStatuses:[408,429,500,502,503,504]}` | **partial**: override one field, keep the rest |
-| `token` | `"arweave"`, or `"solana"` with `signer` | Anything else throws immediately |
+| `token` | `"arweave"`, or `"solana"` with `signer` | `"ethereum"`, `"base-eth"` or `"base-usdc"` with an EVM signer. Anything else throws immediately |
 | `fetch` | global `fetch` | injectable for tests and proxies |
 
 Everything is validated **in the constructor**, so a bad key is a startup error
@@ -554,7 +640,9 @@ price route's answer, `usdcAmount` among it. See § x402 uploads.
 ### `client.verify(binary, { strictSaltLength? })` → `boolean`
 
 Structural and cryptographic verification. § The PSS salt length, and why it is
-478 explains what `strictSaltLength` catches.
+478 explains what `strictSaltLength` catches. A type 3 item needs
+`{ recoverPublicKey, strictV? }`, and the answer is then a promise
+(§ EVM signers).
 
 ### Low-level exports
 
@@ -566,7 +654,8 @@ Structural and cryptographic verification. § The PSS salt length, and why it is
 `verifyDataItem`, and no RSA or key helpers.
 
 Constants: `MAX_TAG_BYTES` (4096) · `MIN_ITEM_SIZE` (1044) ·
-`PSS_SALT_LENGTH_BYTES` (478) · `SIGNATURE_TYPE_ARWEAVE` (1) · `PRODUCTION` ·
+`PSS_SALT_LENGTH_BYTES` (478) · `SIGNATURE_TYPE_ARWEAVE` (1) ·
+`SIGNATURE_TYPE_ETHEREUM` (3) · `SIGNATURE_TYPE_SOLANA` (4) · `PRODUCTION` ·
 `TESTNET` · `DEFAULT_TIMEOUT_MS` · `DEFAULT_RETRY` · `X402_NETWORKS` (USDC
 per network) · `X402_MAX_DATA_BYTES`.
 
@@ -596,7 +685,7 @@ Every error extends `TurboError` and carries its context.
 | `TurboHTTPError` | non-2xx | `status`, `endpoint`, `method`, `body` |
 | `TurboPaymentError` | `402`, the wallet cannot pay, or an x402 upload refused the service's terms before signing. On an x402 upload's paid request the payment might have settled, and the message says so. A `TurboHTTPError`, so existing catches still work | `status`, `endpoint`, `method`, `body` |
 | `TurboVerificationError` | the service returned an id we did not sign | `expectedId`, `receivedId` |
-| `TurboSignerError` | a wallet signer threw, answered with something other than 64 bytes, or signed something else; or an x402 signer threw or returned no hex signature. Nothing was uploaded or paid | `cause` |
+| `TurboSignerError` | a wallet signer threw, answered with the wrong length (64 bytes for Solana, 65 for EVM), or signed something else; or an x402 signer threw or returned no hex signature. Nothing was uploaded or paid | `cause` |
 | `TurboChunkedUploadError` | a chunked upload did not finalize (`INVALID`, or the wait ran out). `UNDERFUNDED` is a `TurboPaymentError` | `uploadId`, `uploadStatus` |
 
 ```
@@ -704,7 +793,10 @@ A second corpus in the repository, `conformance/type4-vectors.json`, holds 22
 complete type 4 (Solana) items generated by `@ardrive/turbo-sdk@2.1.0`. Ed25519
 is deterministic, so it pins every byte, signature and id included; both
 builds reproduce it, in Node, in three browsers and in jsdom. It does not
-ship, to keep the package small.
+ship, to keep the package small. `conformance/type3-vectors.json` does the
+same for type 3 (EVM): 22 items from turbo-sdk's key path and wallet path,
+which gave identical bytes, reproduced through a replayed signer in Node and
+through an injected wallet in the browsers.
 
 For x402, `conformance/x402-vectors.json` holds the payments the `x402`
 package's own client builds from one fixed account, clock and nonce. This

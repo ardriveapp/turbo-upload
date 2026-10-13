@@ -10,9 +10,11 @@ reference.
 signs ANS-104 data items, pays for them and uploads them to Turbo.
 
 - **Keys and wallets**: an Arweave RSA-4096 JWK (Node), a Solana key (Node:
-  base58, a `solana-keygen` JSON array, 64 bytes or a 32-byte seed), or a
-  Solana wallet's `signMessage` (`signer`, both builds). Solana items are
-  ANS-104 type 4, byte-identical to what `@ardrive/turbo-sdk` emits.
+  base58, a `solana-keygen` JSON array, 64 bytes or a 32-byte seed), a
+  Solana wallet's `signMessage` (`signer`, both builds), or an EVM account
+  or wallet through viem (`signer`, both builds). Solana items are ANS-104
+  type 4 and EVM items type 3, byte-identical to what `@ardrive/turbo-sdk`
+  emits.
 - **Runtimes**: Node 18.17 and up; browsers, workers and jsdom through the
   web build, which the `browser` export condition selects. No polyfills.
 - **Paying**: prices, balances, the free quota, reporting a SOL top-up you
@@ -21,11 +23,12 @@ signs ANS-104 data items, pays for them and uploads them to Turbo.
 - **x402**: an EVM wallet pays USDC on Base for an upload that the service
   signs (`uploadUnsignedX402`, both builds). The service owns the item.
 
-**Stop and use `@ardrive/turbo-sdk`** if the task needs a key that is not
-Arweave or Solana to sign data items (Ethereum, KYVE, Polygon), signed or
-chunked x402 uploads, ArNS, folder or ArDrive abstractions, packing your own
-bundles, or a client that builds and sends the SOL transfer itself. This
-package reports a transfer; your wallet or RPC library sends it.
+**Stop and use `@ardrive/turbo-sdk`** if the task needs an Ethereum private
+key signed without an EVM library, a KYVE or Polygon key, an ETH or USDC
+top-up, signed or chunked x402 uploads, ArNS, folder or ArDrive abstractions,
+packing your own bundles, or a client that builds and sends the SOL transfer
+itself. This package reports a SOL transfer; your wallet or RPC library sends
+it.
 
 Both can be installed together. They share no state.
 
@@ -63,6 +66,40 @@ throws for one. Every wallet signature is verified before upload, and a
 wallet that cannot sign data items (a Ledger) throws `TurboSignerError` with
 nothing uploaded. In a browser with no WebCrypto Ed25519 (jsdom, React
 Native) the signer also needs `verify(message, signature, publicKey)`.
+
+## Sign with an EVM key or wallet
+
+```js
+import { privateKeyToAccount } from "viem/accounts";
+import { recoverPublicKey } from "viem";
+import { TurboUpload } from "@ardrive/turbo-upload";
+
+export function fromKey(privateKey) {
+  // A viem account plus viem's recoverPublicKey is a signer as is.
+  return TurboUpload.production({ signer: { ...privateKeyToAccount(privateKey), recoverPublicKey }, token: "base-eth" });
+}
+
+export function fromWallet(walletClient, address) {
+  const signer = {
+    address,
+    signMessage: ({ message }) => walletClient.signMessage({ account: address, message }),
+    recoverPublicKey,
+  };
+  return TurboUpload.production({ signer, token: "base-eth" });
+}
+```
+
+**The caller brings viem** (or any library with the same three names). This
+package has no secp256k1: Node cannot sign a digest it is handed with it,
+WebCrypto has no secp256k1 at all, and the package does not carry its own
+curve code for private keys. `token` is
+`"ethereum"`, `"base-eth"` or `"base-usdc"` and is required with an EVM
+signer. A wallet with no `publicKey` signs one connect message the first
+time, so its key can be recovered. Every item signature is checked before
+upload, and a smart-contract wallet (ERC-1271, ERC-6492) throws
+`TurboSignerError` with nothing uploaded: it cannot sign data items. A deployed
+one can pay for an x402 upload instead (below). `client.address` is the EIP-55 `0x` address, and the free quota is that
+address's.
 
 ## Upload one thing
 
@@ -104,8 +141,8 @@ const { winc } = await client.getUploadCost(size);
 ```
 
 Price the signed item's size, not the payload length: a signed item is 1044
-bytes larger than its data for an Arweave key and 116 for a Solana one, before
-tags.
+bytes larger than its data for an Arweave key, 150 for an EVM one and 116 for
+a Solana one, before tags.
 
 ## Pay for someone else's upload
 
@@ -255,7 +292,7 @@ catches all of them.
 |---|---|---|
 | `TurboPaymentError` | tell "cannot pay" from a transient failure. **Retrying never helps**. After an x402 payment is sent, check the payer's USDC transfers first | `status`, `body` |
 | `TurboVerificationError` | detect an id that is not the one you signed. **Never swallow this** | `expectedId`, `receivedId` |
-| `TurboSignerError` | tell a wallet that cannot sign data items (a Ledger) from a network failure. Nothing was uploaded | `cause` |
+| `TurboSignerError` | tell a wallet that cannot sign data items (a Ledger, a smart-contract EVM wallet) from a network failure. Nothing was uploaded | `cause` |
 | `TurboChunkedUploadError` | report a chunked upload that did not finalize | `uploadId`, `uploadStatus` |
 | `TurboTimeoutError` | tell a slow endpoint from a broken one | `endpoint`, `timeoutMs` |
 | `TurboNetworkError` | retry a connection-level failure | `endpoint`, `cause` |
@@ -294,13 +331,13 @@ items outside the client.
 |---|---|
 | `signDataItem`, `createDataItem` | build an item without a client |
 | `parseDataItem` | read the field offsets of a serialized item |
-| `verifyDataItem` | verify one. `{strictSaltLength: true}` also pins the PSS salt length |
+| `verifyDataItem` | verify one. `{strictSaltLength: true}` also pins the PSS salt length. Type 3 needs `{recoverPublicKey}` and returns a promise, and throws without it (0.5.0 returned `false` for any type 3 item); `{strictV: true}` also pins v |
 | `getSignatureData`, `deepHash` | compute the ANS-104 signature preimage |
 | `serializeTags`, `deserializeTags` | the Avro tag encoding |
 | `signMessage`, `verifyMessage` | raw RSA-PSS over arbitrary bytes |
 | `idFromSignature` | `SHA-256(signature)`, which is how an id is derived |
 | `parseJwk`, `ownerFromJwk`, `addressFromOwner`, `publicKeyFromOwner` | key and address handling |
 | `createSolanaSigner` | a Solana key in the wallet shape, for tests and scripts (Node build) |
-| `PSS_SALT_LENGTH_BYTES`, `MAX_TAG_BYTES`, `MIN_ITEM_SIZE`, `SIGNATURE_TYPE_ARWEAVE` | protocol constants |
+| `PSS_SALT_LENGTH_BYTES`, `MAX_TAG_BYTES`, `MIN_ITEM_SIZE`, `SIGNATURE_TYPE_ARWEAVE`, `SIGNATURE_TYPE_ETHEREUM`, `SIGNATURE_TYPE_SOLANA` | protocol constants |
 | `DEFAULT_TIMEOUT_MS`, `DEFAULT_RETRY` | the client's defaults, for reading |
 | `PRODUCTION`, `TESTNET` | endpoint records |
