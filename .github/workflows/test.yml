@@ -152,6 +152,7 @@ jobs:
       # release: a key in a workflow input lands in a public run's event payload.
       - run: node live-solana-devnet.js --check-guards
       - run: node live-base-sepolia-x402.js --check-guards
+      - run: node live-base-sepolia-type3.js --check-guards
       - name: a mainnet RPC and a production host are refused before any request
         run: |
           set +e
