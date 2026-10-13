@@ -18,7 +18,8 @@
  * "every public export is importable BY NAME from ESM" test pins this.
  */
 
-const { TurboUpload } = require("./src/client.js");
+const { TurboUpload, uploadUnsignedX402 } = require("./src/client.js");
+const { getUnsignedX402Price, X402_NETWORKS, X402_MAX_DATA_BYTES } = require("./src/core/x402.js");
 const { PRODUCTION, TESTNET } = require("./src/endpoints.js");
 const { parseJwk } = require("./src/jwk.js");
 const { createSolanaSigner } = require("./src/ed25519.js");
@@ -64,6 +65,10 @@ module.exports = {
   // The client
   TurboUpload,
 
+  // x402 uploads: an EVM wallet pays in USDC, the service signs the item
+  uploadUnsignedX402,
+  getUnsignedX402Price,
+
   // Endpoint configs, exported so nobody has to guess a hostname
   PRODUCTION,
   TESTNET,
@@ -96,6 +101,8 @@ module.exports = {
   SIGNATURE_TYPE_SOLANA,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_RETRY,
+  X402_NETWORKS,
+  X402_MAX_DATA_BYTES,
 
   // Errors
   TurboError,

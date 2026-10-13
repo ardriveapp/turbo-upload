@@ -63,9 +63,9 @@ class TurboTimeoutError extends TurboError {
 
 /** A non-2xx HTTP response. Carries status, endpoint and response body. */
 class TurboHTTPError extends TurboError {
-  constructor({ status, statusText, endpoint, method, body, cause }) {
+  constructor({ status, statusText, endpoint, method, body, cause, message }) {
     const detail = body ? `, ${truncate(typeof body === "string" ? body : JSON.stringify(body))}` : "";
-    super(`${method} ${endpoint} failed: HTTP ${status}${statusText ? ` ${statusText}` : ""}${detail}`, { cause });
+    super(message ?? `${method} ${endpoint} failed: HTTP ${status}${statusText ? ` ${statusText}` : ""}${detail}`, { cause });
     this.status = status;
     this.statusText = statusText;
     this.endpoint = endpoint;
@@ -86,6 +86,9 @@ class TurboHTTPError extends TurboError {
  * It matters because a payment failure is not transient. Retrying will not help,
  * and an integration that treats it like a 503 goes quiet while reporting
  * healthy, which for an archive is the worst available failure mode.
+ *
+ * An x402 upload throws it too when it refuses the service's terms (another
+ * network, another asset, more than `maxUsdc`), before anything is signed.
  *
  * Still a TurboHTTPError, so existing `catch` blocks keep working unchanged.
  */

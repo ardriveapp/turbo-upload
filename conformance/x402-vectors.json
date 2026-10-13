@@ -1,0 +1,213 @@
+{
+  "format": "x402-exact-evm-payment-vectors",
+  "generated_by": "x402@1.2.0",
+  "inputs": {
+    "from": "0xb9a9807B94fc80C4dF3622eEc146CD20E9adBFF5",
+    "now_ms": 1790000000000,
+    "nonce_hex": "093d163ad389f69f22d3ede86a7970942a26d12148ca9fbe0f7b0f5610178608",
+    "key_rule": "SHA-256(UTF-8(\"x402-conformance\"))"
+  },
+  "vectors": [
+    {
+      "name": "base-sepolia, testnet domain",
+      "requirement": {
+        "scheme": "exact",
+        "maxAmountRequired": "18072",
+        "resource": "https://upload.test/v1/tx",
+        "description": "Upload 1652 bytes",
+        "mimeType": "application/octet-stream",
+        "payTo": "0x9B13eb5096264B12532b8C648Eba4A662b4078ce",
+        "maxTimeoutSeconds": 3600,
+        "network": "base-sepolia",
+        "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "extra": {
+          "name": "USDC",
+          "version": "2"
+        }
+      },
+      "expected": {
+        "typedData": {
+          "types": {
+            "TransferWithAuthorization": [
+              {
+                "name": "from",
+                "type": "address"
+              },
+              {
+                "name": "to",
+                "type": "address"
+              },
+              {
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "name": "validAfter",
+                "type": "uint256"
+              },
+              {
+                "name": "validBefore",
+                "type": "uint256"
+              },
+              {
+                "name": "nonce",
+                "type": "bytes32"
+              }
+            ]
+          },
+          "domain": {
+            "name": "USDC",
+            "version": "2",
+            "chainId": 84532,
+            "verifyingContract": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+          },
+          "primaryType": "TransferWithAuthorization",
+          "message": {
+            "from": "0xb9a9807B94fc80C4dF3622eEc146CD20E9adBFF5",
+            "to": "0x9B13eb5096264B12532b8C648Eba4A662b4078ce",
+            "value": "18072",
+            "validAfter": "1789999400",
+            "validBefore": "1790003600",
+            "nonce": "0x093d163ad389f69f22d3ede86a7970942a26d12148ca9fbe0f7b0f5610178608"
+          }
+        },
+        "signature": "0x621c2f2661ecafbb8eba2a4e98a62f0ce546399b94978056827399f24630f7767b9ada514ebeb6e3988378d907a68e991526a91dd76ff2c00c3cfb2f87abe44b1b",
+        "xPayment": "eyJ4NDAyVmVyc2lvbiI6MSwic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiYmFzZS1zZXBvbGlhIiwicGF5bG9hZCI6eyJzaWduYXR1cmUiOiIweDYyMWMyZjI2NjFlY2FmYmI4ZWJhMmE0ZTk4YTYyZjBjZTU0NjM5OWI5NDk3ODA1NjgyNzM5OWYyNDYzMGY3NzY3YjlhZGE1MTRlYmViNmUzOTg4Mzc4ZDkwN2E2OGU5OTE1MjZhOTFkZDc2ZmYyYzAwYzNjZmIyZjg3YWJlNDRiMWIiLCJhdXRob3JpemF0aW9uIjp7ImZyb20iOiIweGI5YTk4MDdCOTRmYzgwQzRkRjM2MjJlRWMxNDZDRDIwRTlhZEJGRjUiLCJ0byI6IjB4OUIxM2ViNTA5NjI2NEIxMjUzMmI4QzY0OEViYTRBNjYyYjQwNzhjZSIsInZhbHVlIjoiMTgwNzIiLCJ2YWxpZEFmdGVyIjoiMTc4OTk5OTQwMCIsInZhbGlkQmVmb3JlIjoiMTc5MDAwMzYwMCIsIm5vbmNlIjoiMHgwOTNkMTYzYWQzODlmNjlmMjJkM2VkZTg2YTc5NzA5NDJhMjZkMTIxNDhjYTlmYmUwZjdiMGY1NjEwMTc4NjA4In19fQ=="
+      }
+    },
+    {
+      "name": "base, production domain",
+      "requirement": {
+        "scheme": "exact",
+        "maxAmountRequired": "10000",
+        "resource": "https://upload.test/v1/tx",
+        "description": "Upload 1652 bytes",
+        "mimeType": "application/octet-stream",
+        "payTo": "0x9B13eb5096264B12532b8C648Eba4A662b4078ce",
+        "maxTimeoutSeconds": 3600,
+        "network": "base",
+        "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "extra": {
+          "name": "USD Coin",
+          "version": "2"
+        }
+      },
+      "expected": {
+        "typedData": {
+          "types": {
+            "TransferWithAuthorization": [
+              {
+                "name": "from",
+                "type": "address"
+              },
+              {
+                "name": "to",
+                "type": "address"
+              },
+              {
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "name": "validAfter",
+                "type": "uint256"
+              },
+              {
+                "name": "validBefore",
+                "type": "uint256"
+              },
+              {
+                "name": "nonce",
+                "type": "bytes32"
+              }
+            ]
+          },
+          "domain": {
+            "name": "USD Coin",
+            "version": "2",
+            "chainId": 8453,
+            "verifyingContract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+          },
+          "primaryType": "TransferWithAuthorization",
+          "message": {
+            "from": "0xb9a9807B94fc80C4dF3622eEc146CD20E9adBFF5",
+            "to": "0x9B13eb5096264B12532b8C648Eba4A662b4078ce",
+            "value": "10000",
+            "validAfter": "1789999400",
+            "validBefore": "1790003600",
+            "nonce": "0x093d163ad389f69f22d3ede86a7970942a26d12148ca9fbe0f7b0f5610178608"
+          }
+        },
+        "signature": "0x07dd6a434792657371574708f836265df0f8bb1e7769474553adb775b042f16a3d7f660a1fc26d55a845d97dcb0c9d5b65e061e78af20c783a7552d773d2d3481b",
+        "xPayment": "eyJ4NDAyVmVyc2lvbiI6MSwic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiYmFzZSIsInBheWxvYWQiOnsic2lnbmF0dXJlIjoiMHgwN2RkNmE0MzQ3OTI2NTczNzE1NzQ3MDhmODM2MjY1ZGYwZjhiYjFlNzc2OTQ3NDU1M2FkYjc3NWIwNDJmMTZhM2Q3ZjY2MGExZmMyNmQ1NWE4NDVkOTdkY2IwYzlkNWI2NWUwNjFlNzhhZjIwYzc4M2E3NTUyZDc3M2QyZDM0ODFiIiwiYXV0aG9yaXphdGlvbiI6eyJmcm9tIjoiMHhiOWE5ODA3Qjk0ZmM4MEM0ZEYzNjIyZUVjMTQ2Q0QyMEU5YWRCRkY1IiwidG8iOiIweDlCMTNlYjUwOTYyNjRCMTI1MzJiOEM2NDhFYmE0QTY2MmI0MDc4Y2UiLCJ2YWx1ZSI6IjEwMDAwIiwidmFsaWRBZnRlciI6IjE3ODk5OTk0MDAiLCJ2YWxpZEJlZm9yZSI6IjE3OTAwMDM2MDAiLCJub25jZSI6IjB4MDkzZDE2M2FkMzg5ZjY5ZjIyZDNlZGU4NmE3OTcwOTQyYTI2ZDEyMTQ4Y2E5ZmJlMGY3YjBmNTYxMDE3ODYwOCJ9fX0="
+      }
+    },
+    {
+      "name": "base-sepolia, lowercase payTo",
+      "requirement": {
+        "scheme": "exact",
+        "maxAmountRequired": "18072",
+        "resource": "https://upload.test/v1/tx",
+        "description": "Upload 1652 bytes",
+        "mimeType": "application/octet-stream",
+        "payTo": "0x9b13eb5096264b12532b8c648eba4a662b4078ce",
+        "maxTimeoutSeconds": 3600,
+        "network": "base-sepolia",
+        "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "extra": {
+          "name": "USDC",
+          "version": "2"
+        }
+      },
+      "expected": {
+        "typedData": {
+          "types": {
+            "TransferWithAuthorization": [
+              {
+                "name": "from",
+                "type": "address"
+              },
+              {
+                "name": "to",
+                "type": "address"
+              },
+              {
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "name": "validAfter",
+                "type": "uint256"
+              },
+              {
+                "name": "validBefore",
+                "type": "uint256"
+              },
+              {
+                "name": "nonce",
+                "type": "bytes32"
+              }
+            ]
+          },
+          "domain": {
+            "name": "USDC",
+            "version": "2",
+            "chainId": 84532,
+            "verifyingContract": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+          },
+          "primaryType": "TransferWithAuthorization",
+          "message": {
+            "from": "0xb9a9807B94fc80C4dF3622eEc146CD20E9adBFF5",
+            "to": "0x9B13eb5096264B12532b8C648Eba4A662b4078ce",
+            "value": "18072",
+            "validAfter": "1789999400",
+            "validBefore": "1790003600",
+            "nonce": "0x093d163ad389f69f22d3ede86a7970942a26d12148ca9fbe0f7b0f5610178608"
+          }
+        },
+        "signature": "0x621c2f2661ecafbb8eba2a4e98a62f0ce546399b94978056827399f24630f7767b9ada514ebeb6e3988378d907a68e991526a91dd76ff2c00c3cfb2f87abe44b1b",
+        "xPayment": "eyJ4NDAyVmVyc2lvbiI6MSwic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiYmFzZS1zZXBvbGlhIiwicGF5bG9hZCI6eyJzaWduYXR1cmUiOiIweDYyMWMyZjI2NjFlY2FmYmI4ZWJhMmE0ZTk4YTYyZjBjZTU0NjM5OWI5NDk3ODA1NjgyNzM5OWYyNDYzMGY3NzY3YjlhZGE1MTRlYmViNmUzOTg4Mzc4ZDkwN2E2OGU5OTE1MjZhOTFkZDc2ZmYyYzAwYzNjZmIyZjg3YWJlNDRiMWIiLCJhdXRob3JpemF0aW9uIjp7ImZyb20iOiIweGI5YTk4MDdCOTRmYzgwQzRkRjM2MjJlRWMxNDZDRDIwRTlhZEJGRjUiLCJ0byI6IjB4OWIxM2ViNTA5NjI2NGIxMjUzMmI4YzY0OGViYTRhNjYyYjQwNzhjZSIsInZhbHVlIjoiMTgwNzIiLCJ2YWxpZEFmdGVyIjoiMTc4OTk5OTQwMCIsInZhbGlkQmVmb3JlIjoiMTc5MDAwMzYwMCIsIm5vbmNlIjoiMHgwOTNkMTYzYWQzODlmNjlmMjJkM2VkZTg2YTc5NzA5NDJhMjZkMTIxNDhjYTlmYmUwZjdiMGY1NjEwMTc4NjA4In19fQ=="
+      }
+    }
+  ]
+}

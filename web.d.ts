@@ -300,6 +300,87 @@ export interface CheckoutSession {
   quotedPaymentAmount: number;
 }
 
+/* x402 uploads */
+
+/** The networks an x402 upload pays on, in USDC. */
+export type X402Network = "base" | "base-sepolia";
+
+/** The EIP-712 typed data an x402 signer is asked to sign: one USDC TransferWithAuthorization. */
+export interface X402TypedData {
+  domain: { name: string; version: string; chainId: number; verifyingContract: `0x${string}` };
+  types: { TransferWithAuthorization: Array<{ name: string; type: string }> };
+  primaryType: "TransferWithAuthorization";
+  message: { from: `0x${string}`; to: `0x${string}`; value: string; validAfter: string; validBefore: string; nonce: `0x${string}` };
+}
+
+/**
+ * An EVM signer. viem's `privateKeyToAccount(key)` is one as is. For a viem
+ * WalletClient, pass `{ address, signTypedData: (t) => walletClient.signTypedData({ account, ...t }) }`.
+ */
+export interface X402Signer {
+  address: `0x${string}`;
+  /** Resolves to a 0x-prefixed hex signature: 65 bytes, or longer from a smart-contract wallet. */
+  signTypedData(typedData: X402TypedData): Promise<`0x${string}`>;
+}
+
+export interface X402CallOptions extends CallOptions {
+  /** Default PRODUCTION.uploadUrl. */
+  uploadUrl?: string;
+  /** Implied by PRODUCTION's (base) and TESTNET's (base-sepolia) uploadUrl; required for any other. */
+  network?: X402Network;
+  fetch?: typeof fetch;
+}
+
+export interface UploadUnsignedX402Options extends X402CallOptions {
+  data: Uint8Array | string;
+  tags?: Tag[];
+  signer: X402Signer;
+  /** The most this upload may pay, in USDC base units (6 decimals): 50000 is 0.05 USDC. Required. */
+  maxUsdc: IntegerAmount;
+}
+
+export interface X402UploadResult {
+  id: string;
+  /** The service's own wallet, which signed the data item. */
+  owner: string;
+  /** The EVM address that paid. */
+  payer: string;
+  x402Payment?: { paymentId: string; transactionHash: string; network: string; [key: string]: unknown };
+  winc?: string;
+  timestamp?: number;
+  [key: string]: unknown;
+}
+
+export interface X402PriceOptions extends X402CallOptions {
+  /** The raw data's length, before the service wraps it. */
+  byteCount: number;
+  tags?: Tag[];
+}
+
+export interface X402Price {
+  /** USDC base units. An estimate: the 402 an upload receives is what it pays, and can be higher. */
+  usdcAmount: string;
+  estimatedDataItemSize: number;
+  network: X402Network;
+  [key: string]: unknown;
+}
+
+/**
+ * Upload raw bytes, paid for in USDC through x402. The signer signs only the
+ * payment authorization; the service wraps the bytes into a data item and
+ * signs it with its own key, so `owner` is the service and `payer` is you.
+ * The bytes are sent twice: once for the quote, once with the payment.
+ */
+export declare function uploadUnsignedX402(options: UploadUnsignedX402Options): Promise<X402UploadResult>;
+
+/** The unsigned route's price for `byteCount` raw bytes, from the upload service. */
+export declare function getUnsignedX402Price(options: X402PriceOptions): Promise<X402Price>;
+
+/** USDC per network, pinned: an x402 request for any other asset is refused. */
+export declare const X402_NETWORKS: Readonly<Record<X402Network, Readonly<{ chainId: number; asset: `0x${string}` }>>>;
+/** 78643182, the most data one x402 request carries with no tags: the request, data as base64 in a JSON envelope, is capped at 100 MiB. */
+export declare const X402_MAX_DATA_BYTES: number;
+
 /* Low-level ANS-104 */
 
 export interface ParsedDataItem {
@@ -387,7 +468,7 @@ export declare class TurboTimeoutError extends TurboError {
   readonly timeoutMs?: number;
 }
 export declare class TurboHTTPError extends TurboError {
-  constructor(init: { status: number; statusText?: string; endpoint: string; method: string; body?: unknown; cause?: unknown });
+  constructor(init: { status: number; statusText?: string; endpoint: string; method: string; body?: unknown; cause?: unknown; message?: string });
   readonly status: number;
   readonly statusText?: string;
   readonly endpoint: string;

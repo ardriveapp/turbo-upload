@@ -20,6 +20,7 @@ const { utf8Encode, toHex } = require("../core/bytes.js");
 const { TurboUploadCore, assertKnownOptions } = require("../core/client.js");
 const { webCryptoVerifyEd25519 } = require("../core/signer.js");
 const { TurboConfigError, TurboValidationError } = require("../core/errors.js");
+const x402 = require("../core/x402.js");
 
 const WEB_PLATFORM = Object.freeze({
   hashes: jsHashes,
@@ -107,4 +108,17 @@ async function verifyDataItem(binary, opts = {}) {
   return verified === true;
 }
 
-module.exports = { TurboUpload, verifyDataItem };
+/** Upload raw bytes paid for with an x402 USDC authorization. See README. */
+function uploadUnsignedX402(options) {
+  return x402.uploadUnsignedX402(options, {
+    randomBytes(n) {
+      const c = globalThis.crypto;
+      if (!c || typeof c.getRandomValues !== "function") {
+        throw new TurboConfigError("This runtime has no crypto.getRandomValues, which an x402 payment needs for its nonce.");
+      }
+      return c.getRandomValues(new Uint8Array(n));
+    },
+  });
+}
+
+module.exports = { TurboUpload, verifyDataItem, uploadUnsignedX402 };

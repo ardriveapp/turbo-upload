@@ -46,3 +46,16 @@ async function streamTypes(): Promise<string> {
   }
 }
 void streamTypes;
+
+import { uploadUnsignedX402, getUnsignedX402Price, TurboPaymentError as X402Refused, type X402Signer } from "@ardrive/turbo-upload";
+async function x402Types(signer: X402Signer): Promise<string> {
+  const price = await getUnsignedX402Price({ byteCount: 100, uploadUrl: "https://upload.services.ar-io.dev" });
+  try {
+    const r = await uploadUnsignedX402({ data: Buffer.from("x"), signer, maxUsdc: 20_000n, uploadUrl: "https://upload.services.ar-io.dev" });
+    return `${r.id}${r.payer}${r.x402Payment?.transactionHash}${price.usdcAmount}`;
+  } catch (e) {
+    if (e instanceof X402Refused) return e.message;
+    throw e;
+  }
+}
+void x402Types;

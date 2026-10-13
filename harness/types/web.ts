@@ -42,3 +42,17 @@ async function chunkedTypes(blob: Blob): Promise<string> {
   return r.id + s.id;
 }
 void chunkedTypes;
+
+// viem's LocalAccount is an x402 signer as is, and a WalletClient adapts the way the README shows.
+// Checked here rather than in node.ts: viem's own types do not compile under node16 resolution.
+import type { WalletClient, Account } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { uploadUnsignedX402, type X402Signer } from "@ardrive/turbo-upload";
+const local: X402Signer = privateKeyToAccount(`0x${"11".repeat(32)}`);
+void local;
+async function x402Types(walletClient: WalletClient, account: Account): Promise<string> {
+  const signer: X402Signer = { address: account.address, signTypedData: (t) => walletClient.signTypedData({ account, ...t }) };
+  const r = await uploadUnsignedX402({ data: new Uint8Array(1), tags: [{ name: "a", value: "b" }], signer, maxUsdc: "20000", uploadUrl: TESTNET.uploadUrl });
+  return r.id + r.owner;
+}
+void x402Types;
