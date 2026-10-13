@@ -9,7 +9,9 @@
  * Both clients get the same Solana key, the same inputs and the same clock, so
  * a call that sends the same thing sends the same bytes: Ed25519 is
  * deterministic, and the credit-share nonce reads Date.now(), which is fixed
- * here. For each call this compares the method, the path and query, the body
+ * here. The same calls run again with an EVM key and `token: "base-eth"`, ours
+ * through a viem account as its signer: secp256k1 signing is deterministic
+ * too (RFC 6979). For each call this compares the method, the path and query, the body
  * byte for byte, and the headers the service reads (content-type, x-paid-by,
  * x-chunking-version).
  * Every other header is printed, not compared: turbo-sdk names itself in
@@ -36,10 +38,13 @@ const crypto = require("node:crypto");
 const { Buffer } = require("node:buffer");
 const nacl = require("tweetnacl");
 const pkg = require("..");
+const { privateKeyToAccount } = require("viem/accounts");
+const { recoverPublicKey } = require("viem");
 const { encodeBase58 } = require("../src/base58.js");
 
 const FIXED_NOW = 1790000000000;
 const FUNDING = "Bg5HnSVtgHVXEGqJYWqxWad9Vrcgva9JrKw3XFSEGvaB";
+const EVM_FUNDING = "0x1111111111111111111111111111111111111111";
 const TX_ID = "2L67qAbftL66k4oQoPbLJks2VPKweyhEkoXBCxoZSu11MLUUpGdTdwCquriCrTEaErTGpCgrZwStoG2FR9d4Mn4t";
 
 let uploadCounter = 0;
@@ -49,9 +54,9 @@ const chunkedUploads = new Map();
 function answer(method, url, body) {
   const json = (o, status = 200) => ({ status, body: JSON.stringify(o) });
   const path = url.split("?")[0];
-  if (method === "GET" && path === "/v1/info") return json({ addresses: { solana: FUNDING }, freeUploadLimitBytes: 5242880 });
+  if (method === "GET" && path === "/v1/info") return json({ addresses: { solana: FUNDING, "base-eth": EVM_FUNDING }, freeUploadLimitBytes: 5242880 });
   if (method === "GET" && /^\/v1\/price\/bytes\/\d+$/.test(path)) return json({ winc: "1000", adjustments: [] });
-  if (method === "GET" && /^\/v1\/price\/solana\/\d+$/.test(path)) return json({ winc: "18000000000000", fees: [], actualPaymentAmount: "27000000000000" });
+  if (method === "GET" && /^\/v1\/price\/(solana|base-eth)\/\d+$/.test(path)) return json({ winc: "18000000000000", fees: [], actualPaymentAmount: "27000000000000" });
   if (method === "GET" && path.startsWith("/v1/account/balance/")) return json({ winc: "5", controlledWinc: "5", effectiveBalance: "5", givenApprovals: [], receivedApprovals: [] });
   if (method === "GET" && path === "/v1/account/free") return json({ bytesRemaining: 104857600 });
   if (method === "POST" && path.startsWith("/v1/account/balance/")) {
@@ -77,7 +82,7 @@ function answer(method, url, body) {
     const id = crypto.createHash("sha256").update(item.subarray(2, 66)).digest("base64url");
     return json({ status: "FINALIZED", receipt: { id, winc: "1" } });
   }
-  if (method === "POST" && (path === "/v1/tx" || path === "/v1/tx/solana")) {
+  if (method === "POST" && (path === "/v1/tx" || path === "/v1/tx/solana" || path === "/v1/tx/base-eth")) {
     const item = pkg.parseDataItem(body);
     const id = crypto.createHash("sha256").update(item.rawSignature).digest("base64url");
     const tags = pkg.deserializeTags(item.rawTags);
@@ -165,6 +170,35 @@ async function main() {
       () => stopAtQuote(() => pkg.uploadUnsignedX402({ data, tags, signer: quoteOnly, maxUsdc: 10000n, uploadUrl: base, network: "base" }))],
   ];
 
+  // The same calls with an EVM key: turbo-sdk signs with it directly, this
+  // package through a viem account.
+  const evmKey = `0x${crypto.createHash("sha256").update("wire-parity evm").digest("hex")}`;
+  const evmPayer = privateKeyToAccount(`0x${crypto.createHash("sha256").update("evm payer").digest("hex")}`).address;
+  const sdk3 = TurboFactory.authenticated({
+    privateKey: evmKey,
+    token: "base-eth",
+    paymentServiceConfig: { url: base },
+    uploadServiceConfig: { url: base },
+  });
+  const ours3 = new pkg.TurboUpload({
+    signer: { ...privateKeyToAccount(evmKey), recoverPublicKey },
+    token: "base-eth",
+    uploadUrl: base,
+    paymentUrl: base,
+  });
+  calls.push(
+    ["getBalance, base-eth", () => sdk3.getBalance(), () => ours3.getBalance()],
+    ["getWincForToken, base-eth", () => sdk3.getWincForToken({ tokenAmount: 10n ** 15n }), () => ours3.getWincForToken(10n ** 15n)],
+    ["funding address, base-eth", () => sdk3.getTurboCryptoWallets(), () => ours3.getFundingAddress()],
+    ["getFreeQuota, base-eth", () => sdk3.getFreeStatus(), () => ours3.getFreeQuota()],
+    ["shareCredits, base-eth", () => sdk3.shareCredits({ approvedAddress: evmPayer, approvedWincAmount: "123456789", expiresBySeconds: 600 }),
+      () => ours3.shareCredits({ approvedAddress: evmPayer, approvedWincAmount: "123456789", expiresBySeconds: 600 })],
+    ["upload, base-eth", () => sdk3.uploadFile({ fileStreamFactory: () => data, fileSizeFactory: () => data.length, dataItemOpts: { tags } }),
+      () => ours3.upload({ data, tags })],
+    ["upload with paidBy, base-eth", () => sdk3.uploadFile({ fileStreamFactory: () => data, fileSizeFactory: () => data.length, dataItemOpts: { tags, paidBy: evmPayer } }),
+      () => ours3.upload({ data, tags, paidBy: evmPayer })],
+  );
+
   const READ = ["content-type", "x-paid-by", "x-chunking-version", "x-data-item-tags"];
   let failures = 0;
   const rows = [];
@@ -179,7 +213,7 @@ async function main() {
     for (let i = 0; i < Math.min(a.length, b.length); i++) {
       const x = a[i];
       const y = b[i];
-      const routeOnly = x.url === "/v1/tx/solana" && y.url === "/v1/tx";
+      const routeOnly = /^\/v1\/tx\/(solana|base-eth)$/.test(x.url) && y.url === "/v1/tx";
       if (x.url === "/v1/x402/upload/unsigned" && y.headers["content-type"] === "application/json") {
         const e = JSON.parse(y.body.toString("utf8"));
         const meant = JSON.parse(x.headers["x-data-item-tags"] ?? "[]");
@@ -200,14 +234,14 @@ async function main() {
       for (const h of READ) if ((x.headers[h] ?? null) !== (y.headers[h] ?? null)) problems.push(`${h}: ${x.headers[h]} vs ${y.headers[h]}`);
       rows.push({
         call: name,
-        request: `${y.method} ${y.url}${routeOnly ? "   (turbo-sdk: /v1/tx/solana)" : ""}`,
+        request: `${y.method} ${y.url}${routeOnly ? `   (turbo-sdk: ${x.url})` : ""}`,
         body: `${y.body.length} bytes${y.body.length ? `, sha256 ${crypto.createHash("sha256").update(y.body).digest("hex").slice(0, 16)}` : ""}`,
         identical: problems.length === 0,
         sdkOnlyHeaders: Object.keys(x.headers).filter((h) => !(h in y.headers)).join(","),
         oursOnlyHeaders: Object.keys(y.headers).filter((h) => !(h in x.headers)).join(","),
       });
     }
-    if (name === "getWincForToken" && sdkResult.winc !== ourResult.winc) problems.push("winc read differently");
+    if (name.startsWith("getWincForToken") && sdkResult.winc !== ourResult.winc) problems.push("winc read differently");
     if (name === "submitFundTransaction" && (sdkResult.status !== ourResult.status || sdkResult.winc !== ourResult.winc)) problems.push("result mapped differently");
     if (name === "createCheckoutSession" && (sdkResult.url !== ourResult.url || sdkResult.winc !== ourResult.winc)) problems.push("result mapped differently");
     if (name.startsWith("shareCredits") && sdkResult.approvalDataItemId !== ourResult.approvalDataItemId) problems.push("approval ids differ");

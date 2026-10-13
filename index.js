@@ -1,7 +1,8 @@
 "use strict";
 /**
  * @ardrive/turbo-upload, the Node build: sign ANS-104 data items with an
- * Arweave JWK, a Solana key or a wallet-style signer, and upload them to Turbo.
+ * Arweave JWK, a Solana key or a wallet-style signer (Solana or EVM), and
+ * upload them to Turbo.
  * Zero runtime dependencies. The browser build is web.js.
  *
  * NOTE ON THE SHAPE OF THIS FILE. Everything is destructured into a local
@@ -58,6 +59,7 @@ const {
   MIN_ITEM_SIZE,
   PSS_SALT_LENGTH_BYTES,
   SIG_TYPE_ARWEAVE: SIGNATURE_TYPE_ARWEAVE,
+  SIG_TYPE_ETHEREUM: SIGNATURE_TYPE_ETHEREUM,
   SIG_TYPE_SOLANA: SIGNATURE_TYPE_SOLANA,
 } = require("./src/ans104.js");
 
@@ -98,6 +100,7 @@ module.exports = {
   MIN_ITEM_SIZE,
   PSS_SALT_LENGTH_BYTES,
   SIGNATURE_TYPE_ARWEAVE,
+  SIGNATURE_TYPE_ETHEREUM,
   SIGNATURE_TYPE_SOLANA,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_RETRY,

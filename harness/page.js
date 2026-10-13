@@ -4,9 +4,13 @@
 // the page has whatever the browser has, and nothing else.
 //
 // The wallet is @noble/ed25519 over a seed: a stand-in for a browser wallet
-// adapter, with the same shape ({ publicKey, signMessage, verify }).
+// adapter, with the same shape ({ publicKey, signMessage, verify }). For type 3
+// it is an injected EIP-1193 provider over a test key, reached through a viem
+// WalletClient, as a page reaches a browser extension's wallet.
 import * as turbo from "@ardrive/turbo-upload";
 import * as ed from "@noble/ed25519";
+import { createWalletClient, custom, recoverPublicKey } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { sha512 } from "@noble/hashes/sha2.js";
 import { deterministicBytes, guardedFetch } from "./data.mjs";
 
@@ -89,6 +93,110 @@ async function corpus(vectors) {
     }
     out.webCryptoPath = `${ok}/${vectors.length} identical, verified by WebCrypto Ed25519`;
   }
+  return out;
+}
+
+const N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
+
+/**
+ * An injected EIP-1193 provider over a test key, as a browser extension
+ * exposes one. `misbehave` makes it answer personal_sign for an item (48
+ * bytes) the way a broken or unsuitable wallet would. The connect message is
+ * signed properly, so the check that catches it is the per-item one.
+ */
+function injectedProvider(keyHex, misbehave) {
+  const account = privateKeyToAccount(`0x${keyHex}`);
+  const prompts = [];
+  const provider = {
+    prompts,
+    async request({ method, params }) {
+      if (method === "eth_accounts" || method === "eth_requestAccounts") return [account.address];
+      if (method === "eth_chainId") return "0x14a34";
+      if (method !== "personal_sign") throw Object.assign(new Error(`unsupported ${method}`), { code: 4200 });
+      const [data] = params;
+      prompts.push((data.length - 2) / 2);
+      const mode = prompts[prompts.length - 1] === 48 ? misbehave : undefined;
+      if (mode === "rejects") throw Object.assign(new Error("User rejected the request."), { code: 4001 });
+      // A wallet that shows the bytes as text and signs the text.
+      if (mode === "hex-text") return account.signMessage({ message: data.slice(2) });
+      const sig = fromHex((await account.signMessage({ message: { raw: data } })).slice(2));
+      if (mode === "v01") sig[64] -= 27;
+      if (mode === "high-s") {
+        const s = BigInt(`0x${toHex(sig.subarray(32, 64))}`);
+        sig.set(fromHex((N - s).toString(16).padStart(64, "0")), 32);
+        sig[64] = sig[64] === 27 ? 28 : 27;
+      }
+      // An ERC-6492 style answer: longer than 65 bytes.
+      if (mode === "97-bytes") return `0x${toHex(sig)}${"00".repeat(32)}`;
+      return `0x${toHex(sig)}`;
+    },
+  };
+  return { provider, address: account.address };
+}
+
+/** An EVM signer over an injected provider, through a viem WalletClient: the adapter the README shows. */
+function evmSigner(keyHex, misbehave) {
+  const { provider, address } = injectedProvider(keyHex, misbehave);
+  const walletClient = createWalletClient({ account: address, transport: custom(provider) });
+  return {
+    prompts: provider.prompts,
+    address,
+    signMessage: ({ message }) => walletClient.signMessage({ account: address, message }),
+    recoverPublicKey,
+  };
+}
+
+/**
+ * Sign every type 3 corpus vector through the injected wallet and compare with
+ * turbo-sdk's bytes; verify turbo-sdk's items here, strictly; flip a data byte
+ * and v, and expect rejection. Then the wallets that misbehave.
+ */
+async function corpus3(vectors) {
+  const out = { vectors: vectors.length, signedIdentical: 0, sdkItemsVerified: 0, tamperRejected: 0, prompts: "", misbehaving: {}, mismatches: [] };
+  for (const v of vectors) {
+    const signer = evmSigner(v.key_hex);
+    const client = turbo.TurboUpload.testnet({ signer, token: "base-eth" });
+    if (client.address !== v.address) out.mismatches.push(`${v.name}: address`);
+    const item = await client.signAsync({
+      data: fromHex(v.input.data_hex),
+      tags: v.input.tags,
+      target: v.input.target_b64url ?? undefined,
+      anchor: v.input.anchor_utf8 ?? undefined,
+    });
+    if (toHex(item.binary) === v.expected.signed_item_hex && item.idB64Url === v.expected.id_b64url) out.signedIdentical++;
+    else out.mismatches.push(`${v.name}: bytes`);
+    if (item.binary.constructor !== Uint8Array) out.mismatches.push(`${v.name}: binary is ${item.binary.constructor.name}`);
+    out.prompts = signer.prompts.join(",");
+
+    const sdkItem = fromHex(v.expected.signed_item_hex);
+    if (await turbo.verifyDataItem(sdkItem, { recoverPublicKey, strictV: true })) out.sdkItemsVerified++;
+    const flippedV = sdkItem.slice();
+    flippedV[66] = flippedV[66] === 27 ? 28 : 27;
+    const tamperedData = sdkItem.slice();
+    tamperedData[tamperedData.length - 1] ^= 1;
+    const rejects = !(await turbo.verifyDataItem(flippedV, { recoverPublicKey, strictV: true })) &&
+      (v.input.data_hex === "" || !(await turbo.verifyDataItem(tamperedData, { recoverPublicKey })));
+    if (rejects) out.tamperRejected++;
+  }
+  const key = vectors[0].key_hex;
+  for (const mode of ["hex-text", "high-s", "97-bytes", "rejects"]) {
+    let requests = 0;
+    const fetch = () => {
+      requests++;
+      return Promise.reject(new Error("no request may be made"));
+    };
+    const client = turbo.TurboUpload.testnet({ signer: evmSigner(key, mode), token: "base-eth", fetch, retry: false });
+    try {
+      await client.upload({ data: "a misbehaving wallet" });
+      out.misbehaving[mode] = "uploaded";
+    } catch (err) {
+      out.misbehaving[mode] = `${err.name}${requests ? `, ${requests} requests` : ""}`;
+    }
+  }
+  const normalised = await turbo.TurboUpload.testnet({ signer: evmSigner(key, "v01"), token: "base-eth" })
+    .signAsync({ data: "a wallet that writes v as 0 or 1" });
+  const strict = await turbo.verifyDataItem(normalised.binary, { recoverPublicKey, strictV: true });
+  out.misbehaving.v01 = `signed, v ${normalised.binary[66]}, strict verify ${strict}`;
   return out;
 }
 
@@ -206,4 +314,4 @@ async function devnet(params) {
   return results;
 }
 
-globalThis.harness = { corpus, devnet, turbo };
+globalThis.harness = { corpus, corpus3, devnet, turbo };

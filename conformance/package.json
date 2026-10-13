@@ -1,14 +1,17 @@
 {
   "name": "turbo-upload-conformance",
   "private": true,
-  "description": "Not published. Cross-checks @ardrive/turbo-upload against the implementations it must agree with: @dha-team/arbundles for type 1, @ardrive/turbo-sdk for type 4, vectors from the x402 package for x402 payments. Its dependencies are this directory's, never the package's.",
+  "description": "Not published. Cross-checks @ardrive/turbo-upload against the implementations it must agree with: @dha-team/arbundles for type 1, @ardrive/turbo-sdk for types 3 and 4, @noble/hashes, ethers and viem for the EVM pieces, and vectors from the x402 package for x402 payments. Its dependencies are this directory's, never the package's.",
   "license": "Apache-2.0",
   "scripts": {
     "verify": "node verify.js && node standalone-check.js",
     "type4:check": "node type4.js",
     "type4:generate": "node type4.js --write",
+    "type3:check": "node type3.js",
+    "type3:generate": "node type3.js --write",
+    "keccak": "node keccak.js",
     "cross": "node cross-verify.js",
-    "test": "npm run verify && npm run type4:check && npm run cross && npm run wire && npm run x402:check",
+    "test": "npm run verify && npm run type4:check && npm run type3:check && npm run keccak && npm run cross && npm run wire && npm run x402:check",
     "wire": "node wire-parity.js",
     "x402:check": "node x402.js",
     "x402:generate": "node x402-generate.js"
@@ -16,6 +19,8 @@
   "devDependencies": {
     "@ardrive/turbo-sdk": "2.1.0",
     "@dha-team/arbundles": "1.0.4",
+    "@noble/hashes": "1.8.0",
+    "ethers": "6.17.0",
     "viem": "2.57.2"
   },
   "engines": {

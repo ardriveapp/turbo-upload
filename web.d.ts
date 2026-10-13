@@ -1,7 +1,7 @@
 /**
  * @ardrive/turbo-upload, the web build: browsers, workers, jsdom. Signs ANS-104
- * type 4 (Solana) data items through a wallet-style signer and uploads them to
- * Turbo. Bytes are Uint8Array, never Buffer, and nothing here needs Node types.
+ * type 4 (Solana) and type 3 (EVM) data items through a wallet-style signer and
+ * uploads them to Turbo. Bytes are Uint8Array, never Buffer, and nothing here needs Node types.
  *
  * Hand-written declarations, like index.d.ts.
  */
@@ -26,6 +26,38 @@ export interface SolanaWalletSigner {
   verify?(message: Uint8Array, signature: Uint8Array, publicKey: Uint8Array): boolean | Promise<boolean>;
 }
 
+/** The tokens an EVM signer pays with. */
+export type EvmToken = "ethereum" | "base-eth" | "base-usdc";
+
+/** Recover the uncompressed secp256k1 public key from a digest and a 65-byte signature. viem's `recoverPublicKey` is one. */
+export type RecoverPublicKey = (args: { hash: `0x${string}`; signature: `0x${string}` }) => Promise<string | Uint8Array> | string | Uint8Array;
+
+/**
+ * An EVM signer: ANS-104 type 3, with `token` "ethereum", "base-eth" or
+ * "base-usdc". The names are viem's, so `{ ...privateKeyToAccount(key),
+ * recoverPublicKey }` is one. This package carries no secp256k1: your EVM
+ * library signs, and recovers keys.
+ *
+ * `signMessage` is called once per item with the 48 raw bytes of its deep
+ * hash, as an EIP-191 personal message. Every signature is checked before it
+ * is used: v is normalised to 27 or 28, a high s or any length but 65 is
+ * refused, and the key recovered from it must be the item's owner. A
+ * smart-contract wallet cannot pass: TurboSignerError, nothing uploaded.
+ */
+export interface EvmSigner {
+  /** 0x and 40 hex characters. Checked against the public key, and reported in EIP-55 form. */
+  address: string;
+  /** EIP-191 personal_sign over raw bytes. Answers with 65 bytes, as 0x hex or bytes. */
+  signMessage(args: { message: { raw: Uint8Array } }): Promise<string | Uint8Array>;
+  recoverPublicKey: RecoverPublicKey;
+  /**
+   * The 65-byte uncompressed public key, 0x hex or bytes. Without it, the
+   * signer signs a fixed connect message once and the key is recovered from
+   * that signature.
+   */
+  publicKey?: string | Uint8Array;
+}
+
 export interface RetryConfig {
   /** Attempts AFTER the first try. 0 disables retrying. Default 3. */
   retries: number;
@@ -38,8 +70,8 @@ export interface RetryConfig {
 }
 
 export interface TurboUploadOptions {
-  /** The wallet that signs. Required: the web build holds no raw keys. */
-  signer: SolanaWalletSigner;
+  /** The wallet that signs. Required: the web build holds no raw keys. An EVM signer needs an EVM `token`. */
+  signer: SolanaWalletSigner | EvmSigner;
   /** Upload service base URL. Default https://upload.ardrive.io */
   uploadUrl?: string;
   /** Payment service base URL. Default https://payment.ardrive.io */
@@ -48,8 +80,8 @@ export interface TurboUploadOptions {
   timeoutMs?: number;
   /** Partial retry config, merged over the defaults. `false` disables retrying. */
   retry?: Partial<RetryConfig> | false;
-  /** Only "solana" here. */
-  token?: "solana";
+  /** "solana" (the default) with a Solana signer; "ethereum", "base-eth" or "base-usdc" with an EVM signer. */
+  token?: "solana" | EvmToken;
   /** Inject a fetch implementation. Defaults to the global fetch. */
   fetch?: typeof fetch;
 }
@@ -177,10 +209,11 @@ export declare class TurboUpload {
 
   /** The signer's base58 Solana address. */
   readonly address: string;
-  /** The 32-byte public key. */
+  /** The public key: 32 bytes (Solana) or 65 (EVM). For an EVM signer with no `publicKey`, undefined until its first signature. */
   readonly owner: Uint8Array;
+  /** 3 (EVM) or 4 (Solana). */
   readonly signatureType: number;
-  readonly token: "solana";
+  readonly token: "solana" | EvmToken;
   readonly uploadUrl: string;
   readonly paymentUrl: string;
   readonly timeoutMs: number;
@@ -200,8 +233,11 @@ export declare class TurboUpload {
   getBalance(options?: { address?: string; signal?: AbortSignal; timeoutMs?: number }): Promise<Balance>;
   getInfo(options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<ServiceInfo>;
   getFreeUploadLimitBytes(options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<number>;
-  /** Verify a type 4 item with the signer's verify or WebCrypto. Asynchronous, unlike the Node build. */
-  verify(binary: Uint8Array): Promise<boolean>;
+  /**
+   * Verify a type 4 item with the signer's verify or WebCrypto, or a type 3
+   * item with the signer's recoverPublicKey. Asynchronous, unlike the Node build.
+   */
+  verify(binary: Uint8Array, options?: { strictV?: boolean }): Promise<boolean>;
   /** What `tokenAmount` base units of this client's token buy, in winc (lamports for Solana). */
   getWincForToken(tokenAmount: IntegerAmount, options?: CallOptions): Promise<WincForToken>;
   /** The payment service's /v1/info. */
@@ -432,17 +468,26 @@ export declare function idFromSignature(signature: Uint8Array): Uint8Array;
 /** base64url(SHA-256(owner)). */
 export declare function addressFromOwner(owner: Uint8Array): string;
 /**
- * Verify a type 4 item. `verify` is an Ed25519 verifier; without one WebCrypto
- * is used, and a runtime with neither throws rather than answering false.
+ * Verify a type 4 or type 3 item. For type 4, `verify` is an Ed25519
+ * verifier; without one WebCrypto is used, and a runtime with neither throws
+ * rather than answering false. Type 3 needs `recoverPublicKey`, and throws
+ * without it, a change from 0.5.0, which returned false for any type 3 item.
+ * The v byte is ignored by default, as arbundles ignores it; `strictV`
+ * also requires v to be the one that recovers the owner.
  */
 export declare function verifyDataItem(
   binary: Uint8Array,
-  options?: { verify?: (message: Uint8Array, signature: Uint8Array, publicKey: Uint8Array) => boolean | Promise<boolean> },
+  options?: {
+    verify?: (message: Uint8Array, signature: Uint8Array, publicKey: Uint8Array) => boolean | Promise<boolean>;
+    recoverPublicKey?: RecoverPublicKey;
+    strictV?: boolean;
+  },
 ): Promise<boolean>;
 
 export declare const MAX_TAG_BYTES: number;
 export declare const MIN_ITEM_SIZE: number;
 export declare const SIGNATURE_TYPE_ARWEAVE: number;
+export declare const SIGNATURE_TYPE_ETHEREUM: number;
 export declare const SIGNATURE_TYPE_SOLANA: number;
 export declare const DEFAULT_TIMEOUT_MS: number;
 export declare const DEFAULT_RETRY: RetryConfig;

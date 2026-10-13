@@ -19,6 +19,7 @@ const { jsHashes } = require("../core/sha2.js");
 const { utf8Encode, toHex } = require("../core/bytes.js");
 const { TurboUploadCore, assertKnownOptions } = require("../core/client.js");
 const { webCryptoVerifyEd25519 } = require("../core/signer.js");
+const { verifyEthereumSignature } = require("../core/ethereum.js");
 const { TurboConfigError, TurboValidationError } = require("../core/errors.js");
 const x402 = require("../core/x402.js");
 
@@ -44,12 +45,13 @@ const WEB_PLATFORM = Object.freeze({
 class TurboUpload extends TurboUploadCore {
   /**
    * @param {object} options
-   * @param {object} options.signer { publicKey, signMessage, verify? }, a wallet adapter works as is
+   * @param {object} options.signer Solana { publicKey, signMessage, verify? }, a wallet adapter works as is,
+   *   or EVM { address, signMessage, recoverPublicKey, publicKey? } with an EVM token
    * @param {string} [options.uploadUrl]  default https://upload.ardrive.io
    * @param {string} [options.paymentUrl] default https://payment.ardrive.io
    * @param {number} [options.timeoutMs]  default 60000, per request
    * @param {object|false} [options.retry]
-   * @param {"solana"} [options.token]
+   * @param {"solana"|"ethereum"|"base-eth"|"base-usdc"} [options.token]
    * @param {typeof fetch} [options.fetch]
    */
   constructor(options = {}) {
@@ -57,27 +59,33 @@ class TurboUpload extends TurboUploadCore {
   }
 
   /**
-   * Verify a serialized type 4 item. Asynchronous here, unlike the Node build,
-   * because the browser's Ed25519 is: it uses the signer's `verify` when this
-   * client has one, otherwise WebCrypto.
+   * Verify a serialized type 3 or type 4 item. Asynchronous here, unlike the
+   * Node build, because the browser's Ed25519 is: it uses the signer's
+   * `verify` or `recoverPublicKey` when this client has one, otherwise
+   * WebCrypto for type 4.
    *
    * @returns {Promise<boolean>}
    */
   async verify(binary, opts = {}) {
-    assertKnownOptions(opts, [], "verify()", TurboValidationError);
+    assertKnownOptions(opts, ["strictV"], "verify()", TurboValidationError);
     const signer = this._walletSigner;
-    return verifyDataItem(binary, { verify: signer && signer.verify });
+    return verifyDataItem(binary, {
+      ...(signer && signer.verify ? { verify: signer.verify } : {}),
+      ...(signer && signer.recoverPublicKey ? { recoverPublicKey: signer.recoverPublicKey } : {}),
+      ...opts,
+    });
   }
 }
 
 /**
- * Verify a serialized type 4 (Solana) data item, in any runtime.
+ * Verify a serialized type 4 (Solana) or type 3 (EVM) data item, in any runtime.
  *
  * Structure first (offsets, the tag count re-parsed against the declared
- * one), then the signature over the hex of the deep hash. `verify` is an
- * Ed25519 verifier `(message, signature, publicKey) => boolean | Promise`;
- * without one, WebCrypto is used, and a runtime with neither throws rather
- * than answering false for an item it never checked.
+ * one), then the signature. For type 4, over the hex of the deep hash:
+ * `verify` is an Ed25519 verifier `(message, signature, publicKey) => boolean
+ * | Promise`; without one, WebCrypto is used, and a runtime with neither
+ * throws rather than answering false for an item it never checked. For type
+ * 3, `recoverPublicKey` is required (viem's works), and `strictV` also pins v.
  *
  * Type 1 (Arweave RSA) items are refused: verifying RSA-PSS with a 478-byte
  * salt is a Node build feature.
@@ -85,15 +93,29 @@ class TurboUpload extends TurboUploadCore {
  * @returns {Promise<boolean>}
  */
 async function verifyDataItem(binary, opts = {}) {
-  assertKnownOptions(opts, ["verify"], "verifyDataItem()", TurboValidationError);
+  assertKnownOptions(opts, ["verify", "recoverPublicKey", "strictV"], "verifyDataItem()", TurboValidationError);
   const it = core.parseAndCheckStructure(binary);
   if (!it) return false;
+  const signatureData = core.deepHash(core.signatureDataChunks({ ...it, data: it.rawData }), jsHashes);
+  if (it.signatureType === core.SIG_TYPE_ETHEREUM) {
+    if (typeof opts.recoverPublicKey !== "function") {
+      throw new TurboValidationError(
+        "Verifying a type 3 (EVM) item needs `recoverPublicKey`, for example viem's. This package carries no secp256k1.",
+      );
+    }
+    return verifyEthereumSignature({
+      owner: Uint8Array.from(it.rawOwner),
+      signatureData,
+      signature: Uint8Array.from(it.rawSignature),
+      recoverPublicKey: opts.recoverPublicKey,
+      strictV: opts.strictV,
+    });
+  }
   if (it.signatureType !== core.SIG_TYPE_SOLANA) {
     throw new TurboValidationError(
-      `The web build verifies type 4 (Solana) items only; this is type ${it.signatureType}. Use the Node build.`,
+      `The web build verifies type 3 (EVM) and type 4 (Solana) items only; this is type ${it.signatureType}. Use the Node build.`,
     );
   }
-  const signatureData = core.deepHash(core.signatureDataChunks({ ...it, data: it.rawData }), jsHashes);
   const message = utf8Encode(toHex(signatureData));
   const publicKey = Uint8Array.from(it.rawOwner);
   const signature = Uint8Array.from(it.rawSignature);

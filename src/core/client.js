@@ -15,6 +15,7 @@ const { encodeBase58 } = require("./base58.js");
 const { request, resolveRetryConfig, DEFAULT_TIMEOUT_MS } = require("./http.js");
 const { PRODUCTION, TESTNET } = require("./endpoints.js");
 const { normalizeSigner, signWithWallet } = require("./signer.js");
+const ethereum = require("./ethereum.js");
 const payment = require("./payment.js");
 const chunked = require("./chunked.js");
 const {
@@ -134,10 +135,28 @@ class TurboUploadCore {
       if (jwk !== undefined && jwk !== null) {
         throw new TurboConfigError("Pass `jwk` or `signer`, not both: they are two ways to sign.");
       }
+      if (ethereum.EVM_TOKENS.includes(options.token)) {
+        // An EVM signer: ANS-104 type 3. Its public key, the owner, may not be
+        // known until the wallet has signed once; see ./ethereum.js.
+        const wallet = ethereum.normalizeEthereumSigner(signer);
+        Object.defineProperty(this, "_walletSigner", { value: wallet });
+        this.owner = wallet.publicKey ? platform.output(wallet.publicKey) : undefined;
+        this.address = wallet.address;
+        this.signatureType = core.SIG_TYPE_ETHEREUM;
+        this.#finish({ timeoutMs, retry, uploadUrl, paymentUrl, token: options.token, fetchImpl });
+        return;
+      }
       const token = options.token ?? "solana";
       if (token !== "solana") {
         throw new TurboConfigError(
-          `A \`signer\` signs Solana data items (ANS-104 type 4), so \`token\` must be "solana", got ${JSON.stringify(token)}.`,
+          `A Solana \`signer\` signs ANS-104 type 4 items, so \`token\` must be "solana", got ${JSON.stringify(token)}. ` +
+            `An EVM signer takes ${ethereum.EVM_TOKENS.map((t) => `"${t}"`).join(", ")}.`,
+        );
+      }
+      if (options.token === undefined && typeof signer?.address === "string" && /^0x[0-9a-fA-F]{40}$/.test(signer.address)) {
+        throw new TurboConfigError(
+          `This signer has an EVM address, so name the token it pays with: \`token\` ${ethereum.EVM_TOKENS.map((t) => `"${t}"`).join(", ")}. ` +
+            "With no `token`, a signer is taken to be a Solana wallet.",
         );
       }
       const wallet = normalizeSigner(signer);
@@ -210,6 +229,23 @@ class TurboUploadCore {
     return !this._walletSigner && typeof this._platform.signSync === "function";
   }
 
+  /** The wallet's public key. An EVM wallet may sign once to reveal it, and `owner` is set then. */
+  async #walletOwner() {
+    const wallet = this._walletSigner;
+    if (wallet.kind !== "ethereum") return wallet.publicKey;
+    const key = await ethereum.ethereumPublicKey(wallet);
+    if (!this.owner) this.owner = this._platform.output(Uint8Array.from(key));
+    return key;
+  }
+
+  /** Have the wallet sign a deep hash; the signature is verified before it is returned. */
+  #walletSign(signatureData) {
+    const wallet = this._walletSigner;
+    return wallet.kind === "ethereum"
+      ? ethereum.signWithEthereumSigner(wallet, signatureData)
+      : signWithWallet(wallet, signatureData, this._platform.verifyEd25519Raw);
+  }
+
   /**
    * Sign a data item locally without uploading it. Synchronous, so it needs a
    * key this client holds; a client built with `signer` uses signAsync().
@@ -236,8 +272,10 @@ class TurboUploadCore {
    *
    * With a key this is sign(), wrapped in a promise. With a wallet-style
    * signer, `signMessage` is called once, its signature is verified, and only
-   * then is the item stamped. A signature that does not verify throws
-   * TurboSignerError; nothing is returned that could be uploaded.
+   * then is the item stamped. (An EVM wallet with no `publicKey` also signs a
+   * connect message the first time, so its key can be recovered.) A signature
+   * that does not verify throws TurboSignerError; nothing is returned that
+   * could be uploaded.
    */
   async signAsync(options = {}) {
     assertKnownOptions(options, SIGN_OPTIONS, "signAsync()", TurboValidationError);
@@ -247,9 +285,10 @@ class TurboUploadCore {
       throw new TurboValidationError("`data` is required. Pass a Buffer, Uint8Array or string.");
     }
     const p = this._platform;
-    const binary = p.createDataItem({ data, tags, target, anchor, owner: this._walletSigner.publicKey, signatureType: this.signatureType });
+    const owner = await this.#walletOwner();
+    const binary = p.createDataItem({ data, tags, target, anchor, owner, signatureType: this.signatureType });
     const signatureData = p.getSignatureData(binary);
-    const signature = await signWithWallet(this._walletSigner, signatureData, p.verifyEd25519Raw);
+    const signature = await this.#walletSign(signatureData);
     binary.set(signature, 2);
     const id = p.hashes.sha256(signature);
     return {
@@ -279,8 +318,10 @@ class TurboUploadCore {
     }
     // Building the header validates target, anchor and tags exactly as signing
     // would, so a size is never returned for an item that cannot be made.
+    // An EVM wallet's key may not be known yet; only its width matters here.
+    const owner = this.owner ?? new Uint8Array(core.SIG_CONFIG[this.signatureType].ownerLength);
     const header = this._platform.createDataItem({
-      tags, target, anchor, owner: this.owner, signatureType: this.signatureType,
+      tags, target, anchor, owner, signatureType: this.signatureType,
     });
     return header.length + size;
   }
@@ -434,7 +475,8 @@ class TurboUploadCore {
     const p = this._platform;
 
     // The header carries no data, so it is small; the data follows it as is.
-    const header = p.createDataItem({ tags, target, anchor, owner: this.owner, signatureType: this.signatureType });
+    const ownerKey = this._walletSigner ? await this.#walletOwner() : this.owner;
+    const header = p.createDataItem({ tags, target, anchor, owner: ownerKey, signatureType: this.signatureType });
     const fields = core.parseDataItem(header);
 
     const hashData = async (source, onPiece) => {
@@ -460,7 +502,7 @@ class TurboUploadCore {
     );
     const signature = this._signsSync
       ? p.signSignatureData(this, signatureData)
-      : await signWithWallet(this._walletSigner, signatureData, p.verifyEd25519Raw);
+      : await this.#walletSign(signatureData);
     header.set(signature, 2);
     const expectedId = toBase64Url(p.hashes.sha256(signature));
     const owner = toBase64Url(p.hashes.sha256(fields.rawOwner));

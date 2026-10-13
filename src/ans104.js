@@ -2,6 +2,7 @@
 /**
  * ANS-104 data-item signing for the Node build: signature type 1 (Arweave,
  * RSA-4096 / RSA-PSS-SHA256) and type 4 (Solana, Ed25519, in ./ed25519.js).
+ * Type 3 (EVM) is signed only through a signer, in ./core/ethereum.js.
  *
  * Dependencies: node:crypto and node:buffer. Nothing else, ever.
  *
@@ -27,10 +28,12 @@ const {
 const { Buffer } = require("node:buffer");
 const { TurboValidationError } = require("./errors.js");
 const core = require("./core/ans104.js");
+const { verifyEthereumSignature } = require("./core/ethereum.js");
 
 const {
   SIG_CONFIG,
   SIG_TYPE_ARWEAVE,
+  SIG_TYPE_ETHEREUM,
   SIG_TYPE_SOLANA,
   MAX_TAG_BYTES,
   MIN_BINARY_SIZE,
@@ -280,11 +283,16 @@ function signDataItem(jwk, opts = {}) {
  * accepted, and two implementations disagree about what the item SAYS while
  * both agree the signature is valid.
  *
+ * A type 3 (EVM) item needs `recoverPublicKey`, since this package carries
+ * no secp256k1, and with it the answer is a promise: viem's is async. See
+ * verifyEthereumSignature in ./core/ethereum.js for what `strictV` adds.
+ *
  * @param {Buffer|Uint8Array} binary
- * @param {{strictSaltLength?: boolean}} [opts]
- * @returns {boolean}
+ * @param {{strictSaltLength?: boolean, recoverPublicKey?: Function, strictV?: boolean}} [opts]
+ * @returns {boolean|Promise<boolean>} a promise when `recoverPublicKey` is passed
  */
 function verifyDataItem(binary, opts = {}) {
+  if (opts.recoverPublicKey) return verifyWithRecover(binary, opts);
   let it;
   try {
     it = parseDataItem(binary);
@@ -298,6 +306,12 @@ function verifyDataItem(binary, opts = {}) {
     } catch {
       return false;
     }
+  }
+  if (it.signatureType === SIG_TYPE_ETHEREUM) {
+    throw new TurboValidationError(
+      "Verifying a type 3 (EVM) item needs `recoverPublicKey`, for example viem's: " +
+        "verifyDataItem(binary, { recoverPublicKey }). This package carries no secp256k1.",
+    );
   }
   try {
     const signatureData = getSignatureData(binary);
@@ -313,9 +327,28 @@ function verifyDataItem(binary, opts = {}) {
   }
 }
 
+/** verifyDataItem with a `recoverPublicKey`: type 3 checked through it, the other types as usual. */
+async function verifyWithRecover(binary, opts) {
+  const { recoverPublicKey, strictV, ...rest } = opts;
+  if (typeof recoverPublicKey !== "function") {
+    throw new TurboValidationError("`recoverPublicKey` must be a function: ({ hash, signature }) => Promise<`0x${string}`>.");
+  }
+  const it = core.parseAndCheckStructure(binary);
+  if (!it) return false;
+  if (it.signatureType !== SIG_TYPE_ETHEREUM) return verifyDataItem(binary, rest);
+  return verifyEthereumSignature({
+    owner: Uint8Array.from(it.rawOwner),
+    signatureData: core.deepHash(core.signatureDataChunks({ ...it, data: it.rawData }), nodeHashes),
+    signature: Uint8Array.from(it.rawSignature),
+    recoverPublicKey,
+    strictV,
+  });
+}
+
 module.exports = {
   SIG_CONFIG,
   SIG_TYPE_ARWEAVE,
+  SIG_TYPE_ETHEREUM,
   SIG_TYPE_SOLANA,
   MAX_TAG_BYTES,
   MIN_BINARY_SIZE,

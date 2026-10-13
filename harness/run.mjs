@@ -29,6 +29,9 @@ const require = createRequire(import.meta.url);
 const args = process.argv.slice(2);
 const DEVNET = args.includes("--devnet");
 const VECTORS = JSON.parse(fs.readFileSync(path.join(here, "..", "conformance", "type4-vectors.json"), "utf8")).vectors;
+// The type 3 keys follow the corpus's key rule; the page is handed them rather than deriving them.
+const VECTORS3 = JSON.parse(fs.readFileSync(path.join(here, "..", "conformance", "type3-vectors.json"), "utf8")).vectors
+  .map((v) => ({ ...v, key_hex: crypto.createHash("sha256").update(`turbo-upload type 3 corpus/${v.name}`).digest("hex") }));
 
 /* ------------------------------- build ------------------------------- */
 
@@ -42,7 +45,9 @@ const build = await esbuild.build({
   logLevel: "warning",
 });
 const inputs = Object.keys(build.metafile.inputs);
-const fromPackage = inputs.filter((p) => !p.includes("node_modules/@noble") && !p.startsWith("page.js") && !p.startsWith("data.mjs"));
+// The package resolves through a symlink to the checkout, so its files are the
+// inputs outside node_modules; the wallets' libraries (@noble, viem) are inside.
+const fromPackage = inputs.filter((p) => !p.includes("node_modules/") && !p.startsWith("page.js") && !p.startsWith("data.mjs"));
 const resolution = {
   webBuild: fromPackage.some((p) => p.endsWith("web.js")),
   nodeBuild: fromPackage.some((p) => /(^|\/)index\.js$/.test(p) || p.endsWith("src/client.js") || p.endsWith("src/ans104.js")),
@@ -117,7 +122,8 @@ for (const name of wanted) {
   page.on("pageerror", (e) => consoleErrors.push(String(e)));
   await page.goto(origin + "/");
   const result = await page.evaluate((v) => globalThis.harness.corpus(v), VECTORS);
-  report.browsers[name] = { version: browser.version(), ...result, pageErrors: consoleErrors };
+  const type3 = await page.evaluate((v) => globalThis.harness.corpus3(v), VECTORS3);
+  report.browsers[name] = { version: browser.version(), ...result, type3, pageErrors: consoleErrors };
   if (DEVNET) {
     const params = devnetParams();
     // The large chunked uploads run from one browser: each is hundreds of MiB
@@ -137,7 +143,8 @@ for (const name of wanted) {
   const dom = new JSDOM("<!doctype html><html><body></body></html>", { runScripts: "outside-only", url: origin + "/" });
   dom.window.eval(bundle);
   const result = await dom.window.harness.corpus(VECTORS);
-  report.jsdom = { jsdom: require("jsdom/package.json").version, ...result };
+  const type3 = await dom.window.harness.corpus3(VECTORS3);
+  report.jsdom = { jsdom: require("jsdom/package.json").version, ...result, type3 };
   dom.window.close();
 }
 
@@ -163,8 +170,21 @@ async function fetchBack(u) {
 }
 
 console.log(JSON.stringify(report, null, 2));
+// Type 3: every vector identical, one connect prompt of 44 bytes and then 48 bytes
+// per item, and each misbehaving wallet refused with TurboSignerError before
+// any request, except v as 0 or 1, which is normalised.
+const MISBEHAVING = {
+  "hex-text": "TurboSignerError",
+  "high-s": "TurboSignerError",
+  "97-bytes": "TurboSignerError",
+  rejects: "TurboSignerError",
+  v01: (s) => /^signed, v 2[78], strict verify true$/.test(s),
+};
+const type3Ok = (t) => t && t.signedIdentical === VECTORS3.length && t.sdkItemsVerified === VECTORS3.length &&
+  t.tamperRejected === VECTORS3.length && t.prompts === "44,48" && t.mismatches.length === 0 &&
+  Object.entries(MISBEHAVING).every(([mode, want]) => (typeof want === "string" ? t.misbehaving[mode] === want : want(t.misbehaving[mode] || "")));
 const corpusOk = (r) => r && !r.error && r.signedIdentical === VECTORS.length && r.sdkItemsVerified === VECTORS.length &&
-  r.tamperRejected === VECTORS.length && r.typeofBuffer === "undefined" && r.mismatches.length === 0;
+  r.tamperRejected === VECTORS.length && r.typeofBuffer === "undefined" && r.mismatches.length === 0 && type3Ok(r.type3);
 const failed = [
   ...wanted.filter((n) => !corpusOk(report.browsers[n])).map((n) => `corpus in ${n}`),
   ...(corpusOk(report.jsdom) ? [] : ["corpus in jsdom"]),
@@ -177,4 +197,4 @@ if (failed.length) {
   console.error(`FAILED: ${failed.join("; ")}`);
   process.exit(1);
 }
-console.error(`harness OK: corpus in ${wanted.join(", ")} and jsdom${DEVNET ? "; devnet flow in each" : ""}`);
+console.error(`harness OK: type 4 and type 3 corpora in ${wanted.join(", ")} and jsdom${DEVNET ? "; devnet flow in each" : ""}`);

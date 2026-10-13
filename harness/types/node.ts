@@ -59,3 +59,15 @@ async function x402Types(signer: X402Signer): Promise<string> {
   }
 }
 void x402Types;
+
+// An EVM signer in the shape viem's names give it, and the type 3 verify overload.
+import { type EvmSigner, type RecoverPublicKey, verifyDataItem } from "@ardrive/turbo-upload";
+async function evmTypes(recover: RecoverPublicKey, signMessage: EvmSigner["signMessage"]): Promise<string> {
+  const evm = TurboUpload.testnet({ signer: { address: "0x0000000000000000000000000000000000000001", signMessage, recoverPublicKey: recover }, token: "base-usdc" });
+  const item = await evm.signAsync({ data: "x" });
+  const ok: boolean = await verifyDataItem(item.binary, { recoverPublicKey: recover, strictV: true });
+  const sync: boolean = verifyDataItem(item.binary);
+  const viaClient: boolean = await evm.verify(item.binary, { recoverPublicKey: recover });
+  return `${ok}${sync}${viaClient}${evm.address}`;
+}
+void evmTypes;
