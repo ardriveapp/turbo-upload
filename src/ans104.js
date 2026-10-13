@@ -291,7 +291,7 @@ function verifyDataItem(binary, opts = {}) {
   } catch {
     return false;
   }
-  if (it.rawTags.length > MAX_TAG_BYTES) return false;
+  if (core.declaredTagBytes(it) > MAX_TAG_BYTES) return false; // DE-FACTO, see ./core/ans104.js
   if (it.tagCount > 0) {
     try {
       if (deserializeTags(Buffer.from(it.rawTags)).length !== it.tagCount) return false;
