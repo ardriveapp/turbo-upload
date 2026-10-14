@@ -218,7 +218,7 @@ test("a 402 after paying is a TurboPaymentError, and the paid request is never r
   const refused = stub(quote([offer()]), [402, { x402Version: 1, error: "insufficient_funds", accepts: [offer()] }]);
   await assert.rejects(
     uploadUnsignedX402({ data: "x", signer: recorder(), maxUsdc: 20000, uploadUrl: TESTNET.uploadUrl, fetch: refused }),
-    (err) => err instanceof TurboPaymentError && err.body.error === "insufficient_funds",
+    (err) => err instanceof TurboPaymentError && err.body.error === "insufficient_funds" && /The payment might have settled/.test(err.message),
   );
   assert.equal(refused.calls.length, 2);
   const flaky = stub(quote([offer()]), [503, "busy"]);
@@ -323,6 +323,12 @@ test("bad arguments are refused before anything is sent", async () => {
     /over the 104857600-byte limit/,
     "tags count against the limit too",
   );
+  // Tags of 3072 bytes leave room for the service's own; one byte more is refused.
+  const tags = (n) => [{ name: "Content-Type", value: "text/plain" }, { name: "Big", value: "a".repeat(n) }];
+  await assert.rejects(uploadUnsignedX402({ ...ok, tags: tags(3041) }), /The tags take 3073 bytes, over the 3072 an x402 upload allows/);
+  assert.equal(fetch.calls.length, 0);
+  const room = stub(quote([offer()]), [200, PAID]);
+  assert.equal((await uploadUnsignedX402({ ...ok, maxUsdc: 20000, tags: tags(3040), fetch: room })).id, PAID.id);
   assert.equal(fetch.calls.length, 0);
 });
 

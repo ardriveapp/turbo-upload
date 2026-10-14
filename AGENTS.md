@@ -153,7 +153,7 @@ asks; over `maxUsdc`, another network or another asset throws
 `TurboPaymentError` before anything is signed. For a viem `WalletClient`, pass
 `{ address, signTypedData: (t) => walletClient.signTypedData({ account, ...t }) }`.
 The first Content-Type tag becomes the item's Content-Type, and every other
-tag is stored as given, non-ASCII values included. One request carries at most
+tag is stored as given, non-ASCII values included, up to 3072 tag bytes. One request carries at most
 `X402_MAX_DATA_BYTES` (about 75 MiB), and the paid request is never retried:
 if it fails, the error says whether the payment might have settled.
 

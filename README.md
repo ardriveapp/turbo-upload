@@ -48,7 +48,7 @@ and a CLI, and that costs a dependency tree:
 | `@ardrive/turbo-sdk@1.43.0` | 784 | 895 MB |
 | `@ardrive/turbo-upload@0.3.0` | 1 | 488 KB |
 | `@ardrive/turbo-upload@0.5.0` | 1 | 700 KB |
-| `@ardrive/turbo-upload@0.6.0` | 1 | 768 KB |
+| `@ardrive/turbo-upload@0.6.0` | 1 | 772 KB |
 
 Measured 2026-09-11 (0.5.0: 2026-10-01, 0.6.0: 2026-10-13, from an `npm pack`
 tarball of the release commit) into an empty project with `npm install`, size
@@ -291,14 +291,17 @@ the `402`: on testnet it quoted 1377 for a small item whose `402` asked 18072
 
 **The bytes are sent twice**, once to be quoted and once with the payment.
 The paid request is never retried, so an authorization is submitted at most
-once. If it fails with anything but a `402` (no answer, a timeout, any other
-status), the error says the payment might have settled: check the payer's USDC
-transfers before you upload again. A payment is never sent over plain HTTP, except to a loopback address,
+once. If it fails, the error says the payment might have settled: check the
+payer's USDC transfers before you upload again. The service answers `402` when
+settling fails as well as when it refuses, so a `402` here is no proof that
+nothing was paid. A payment is never sent over plain HTTP, except to a loopback address,
 and a redirect is refused rather than followed.
 
 **Tags travel in the route's JSON envelope**, with the bytes as base64: the
 first Content-Type tag becomes the item's Content-Type, and every other tag is
-stored as given, including values that are not ASCII. The envelope makes the
+stored as given, including values that are not ASCII. The tags can take at
+most 3072 bytes serialized: the service adds its own after the payment
+settles, and the item's tags must fit in `MAX_TAG_BYTES`. The envelope makes the
 request four bytes for every three of data, and the service takes a request of
 at most 100 MiB, so one upload carries at most `X402_MAX_DATA_BYTES`
 (78643182 bytes, about 75 MiB, less a little for tags). Chunked x402 uploads

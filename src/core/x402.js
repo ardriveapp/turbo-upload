@@ -39,6 +39,13 @@ const X402_MAX_BODY_BYTES = 100 * 1024 * 1024;
  */
 const X402_MAX_DATA_BYTES = Math.floor((X402_MAX_BODY_BYTES - 21) / 4) * 3;
 
+/**
+ * The most bytes the caller's tags can take on this route. The service adds
+ * about 300 bytes of its own tags after the payment settles, and an item over
+ * MAX_TAG_BYTES then fails with the payment already taken.
+ */
+const X402_MAX_TAG_BYTES = core.MAX_TAG_BYTES - 1024;
+
 const TRANSFER_WITH_AUTHORIZATION = Object.freeze([
   { name: "from", type: "address" },
   { name: "to", type: "address" },
@@ -144,7 +151,13 @@ function toBase64(bytes) {
  * a value that is not ASCII, so this is the one form that keeps every tag.
  */
 function envelope(data, tags = []) {
-  core.serializeTags(tags);
+  const tagBytes = core.serializeTags(tags).length;
+  if (tagBytes > X402_MAX_TAG_BYTES) {
+    throw new TurboValidationError(
+      `The tags take ${tagBytes} bytes, over the ${X402_MAX_TAG_BYTES} an x402 upload allows: the service adds its own tags, ` +
+        `and an item's tags cannot exceed ${core.MAX_TAG_BYTES} bytes.`,
+    );
+  }
   const ct = tags.findIndex((t) => t.name.toLowerCase() === "content-type");
   const rest = tags.filter((_, i) => i !== ct).map(({ name, value }) => ({ name, value }));
   const head = utf8Encode('{"data":"');
@@ -308,8 +321,8 @@ async function uploadUnsignedX402(options, platform) {
             "deployed yet: its ERC-6492 signature is not accepted. Deploy the account (any first transaction does it), then pay again.",
         });
       }
-      // A refused payment is a 402. Anything else might have come after the service settled it.
-      if (err instanceof TurboNetworkError || err instanceof TurboTimeoutError || (err instanceof TurboHTTPError && !(err instanceof TurboPaymentError))) {
+      // The service also answers 402 when settling fails, which can be after the transfer was sent.
+      if (err instanceof TurboNetworkError || err instanceof TurboTimeoutError || err instanceof TurboHTTPError) {
         err.message += " The payment might have settled: check the payer's USDC transfers before uploading again.";
       }
       throw err;
