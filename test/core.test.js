@@ -118,4 +118,9 @@ test("a declared tag-byte length past the end of the item is refused, as arbundl
   low[low.length - 8] ^= 0x01;
   assert.equal(verifyDataItem(low), true);
   assert.equal(await web.verifyDataItem(new Uint8Array(low), { verify }), true);
+  const jwk = crypto.generateKeyPairSync("rsa", { modulusLength: 4096 }).privateKey.export({ format: "jwk" });
+  const type1 = Buffer.from(new TurboUpload({ jwk }).sign({ data: Buffer.alloc(0) }).binary);
+  assert.equal(verifyDataItem(type1), true);
+  type1[type1.length - 1] ^= 0x01;
+  assert.equal(verifyDataItem(type1), false, "type 1, last byte ^0x1");
 });
