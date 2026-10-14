@@ -48,7 +48,7 @@ and a CLI, and that costs a dependency tree:
 | `@ardrive/turbo-sdk@1.43.0` | 784 | 895 MB |
 | `@ardrive/turbo-upload@0.3.0` | 1 | 488 KB |
 | `@ardrive/turbo-upload@0.5.0` | 1 | 700 KB |
-| `@ardrive/turbo-upload@0.6.0` | 1 | 772 KB |
+| `@ardrive/turbo-upload@0.6.0` | 1 | 784 KB |
 
 Measured 2026-09-11 (0.5.0: 2026-10-01, 0.6.0: 2026-10-13, from an `npm pack`
 tarball of the release commit) into an empty project with `npm install`, size
@@ -594,7 +594,7 @@ Every error extends `TurboError` and carries its context.
 | `TurboNetworkError` | no response at all (DNS, TLS, reset) | `endpoint`, `method`, `cause` |
 | `TurboTimeoutError` | exceeded `timeoutMs`, or caller aborted | `endpoint`, `timeoutMs`, `cause` |
 | `TurboHTTPError` | non-2xx | `status`, `endpoint`, `method`, `body` |
-| `TurboPaymentError` | `402`, the wallet cannot pay, or an x402 upload refused the service's terms before signing. A `TurboHTTPError`, so existing catches still work | `status`, `endpoint`, `method`, `body` |
+| `TurboPaymentError` | `402`, the wallet cannot pay, or an x402 upload refused the service's terms before signing. On an x402 upload's paid request the payment might have settled, and the message says so. A `TurboHTTPError`, so existing catches still work | `status`, `endpoint`, `method`, `body` |
 | `TurboVerificationError` | the service returned an id we did not sign | `expectedId`, `receivedId` |
 | `TurboSignerError` | a wallet signer threw, answered with something other than 64 bytes, or signed something else; or an x402 signer threw or returned no hex signature. Nothing was uploaded or paid | `cause` |
 | `TurboChunkedUploadError` | a chunked upload did not finalize (`INVALID`, or the wait ran out). `UNDERFUNDED` is a `TurboPaymentError` | `uploadId`, `uploadStatus` |

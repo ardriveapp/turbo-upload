@@ -155,7 +155,7 @@ asks; over `maxUsdc`, another network or another asset throws
 The first Content-Type tag becomes the item's Content-Type, and every other
 tag is stored as given, non-ASCII values included, up to 3072 tag bytes. One request carries at most
 `X402_MAX_DATA_BYTES` (about 75 MiB), and the paid request is never retried:
-if it fails, the error says whether the payment might have settled.
+if it fails, the error says the payment might have settled.
 
 ## Upload something large
 
@@ -253,7 +253,7 @@ catches all of them.
 
 | Class | Catch it to | Read off it |
 |---|---|---|
-| `TurboPaymentError` | tell "cannot pay" from a transient failure. **Retrying never helps** | `status`, `body` |
+| `TurboPaymentError` | tell "cannot pay" from a transient failure. **Retrying never helps**. After an x402 payment is sent, check the payer's USDC transfers first | `status`, `body` |
 | `TurboVerificationError` | detect an id that is not the one you signed. **Never swallow this** | `expectedId`, `receivedId` |
 | `TurboSignerError` | tell a wallet that cannot sign data items (a Ledger) from a network failure. Nothing was uploaded | `cause` |
 | `TurboChunkedUploadError` | report a chunked upload that did not finalize | `uploadId`, `uploadStatus` |

@@ -477,7 +477,7 @@ export declare class TurboHTTPError extends TurboError {
   /** Set when the request was part of a chunked upload. */
   readonly uploadId?: string;
 }
-/** HTTP 402: the payer cannot pay. Retrying never helps. */
+/** HTTP 402: the payer cannot pay. Retrying never helps. After an x402 payment is sent, it might have settled. */
 export declare class TurboPaymentError extends TurboHTTPError {}
 export declare class TurboVerificationError extends TurboError {
   constructor(message: string, init?: { expectedId?: string; receivedId?: string; endpoint?: string });
