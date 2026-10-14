@@ -1,7 +1,7 @@
 {
   "name": "turbo-upload-harness",
   "private": true,
-  "description": "Not published. Runs the web build in headless Chromium, Firefox and WebKit, in jsdom and under Jest, through the bundlers the README names, and type-checks both declaration files. Its dependencies are this directory's, never the package's.",
+  "description": "Not published. Runs the web build in headless Chromium, Firefox and WebKit, with Solana and EVM wallets, in jsdom and under Jest, through the bundlers the README names, and type-checks both declaration files. Its dependencies are this directory's, never the package's.",
   "license": "Apache-2.0",
   "engines": {
     "node": ">=22"

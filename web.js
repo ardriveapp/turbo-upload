@@ -1,7 +1,8 @@
 "use strict";
 /**
  * @ardrive/turbo-upload, the web build: browsers, workers, jsdom. Signs ANS-104
- * type 4 data items through a wallet-style signer and uploads them to Turbo.
+ * type 4 (Solana) and type 3 (EVM) data items through a wallet-style signer
+ * and uploads them to Turbo.
  * Zero dependencies, no polyfills: it never touches Buffer, process or a
  * `node:` module, and bytes come back as Uint8Array.
  *
@@ -44,6 +45,7 @@ const {
   MAX_TAG_BYTES,
   MIN_ITEM_SIZE,
   SIG_TYPE_ARWEAVE: SIGNATURE_TYPE_ARWEAVE,
+  SIG_TYPE_ETHEREUM: SIGNATURE_TYPE_ETHEREUM,
   SIG_TYPE_SOLANA: SIGNATURE_TYPE_SOLANA,
 } = core;
 
@@ -86,6 +88,7 @@ module.exports = {
   MAX_TAG_BYTES,
   MIN_ITEM_SIZE,
   SIGNATURE_TYPE_ARWEAVE,
+  SIGNATURE_TYPE_ETHEREUM,
   SIGNATURE_TYPE_SOLANA,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_RETRY,

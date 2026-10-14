@@ -94,6 +94,46 @@ test("the web build signs the type 4 corpus byte-identical to turbo-sdk, in a ba
   }
 });
 
+test("the web build signs the type 3 corpus byte-identical to turbo-sdk, in a bare realm", async (t) => {
+  const corpus = path.join(ROOT, "conformance", "type3-vectors.json");
+  if (!fs.existsSync(corpus)) return t.skip("conformance/type3-vectors.json is not shipped; run from a checkout");
+  const V = JSON.parse(fs.readFileSync(corpus, "utf8"));
+  const { web } = loadWebBuild();
+  // A replay of the corpus, as in test/type3.test.js: no secp256k1 in this realm or this package.
+  const table = new Map();
+  for (const v of V.vectors) {
+    table.set(`0x${v.expected.eip191_digest_hex}|0x${v.expected.signature_hex}`, `0x${v.public_key_hex}`);
+    table.set(`0x${v.wallet_path.connect_digest_hex}|0x${v.wallet_path.connect_signature_hex}`, `0x${v.public_key_hex}`);
+  }
+  const recoverPublicKey = async ({ hash, signature }) => table.get(`${hash}|${signature}`) ?? `0x04${"11".repeat(64)}`;
+  for (const v of V.vectors) {
+    const signer = {
+      address: v.address.toLowerCase(),
+      signMessage: async ({ message }) => (message.raw.length === 48
+        ? `0x${v.expected.signature_hex}`
+        : `0x${v.wallet_path.connect_signature_hex}`),
+      recoverPublicKey,
+    };
+    const client = new web.TurboUpload({ signer, token: "base-eth" });
+    assert.equal(client.address, v.address);
+    const item = await client.signAsync({
+      data: new Uint8Array(Buffer.from(v.input.data_hex, "hex")),
+      tags: v.input.tags,
+      target: v.input.target_b64url ?? undefined,
+      anchor: v.input.anchor_utf8 ?? undefined,
+    });
+    assert.equal(Buffer.from(item.binary).toString("hex"), v.expected.signed_item_hex, v.name);
+    assert.equal(item.idB64Url, v.expected.id_b64url, v.name);
+    assert.equal(item.binary.constructor.name, "Uint8Array", "never a Buffer");
+    assert.equal(await client.verify(item.binary, { strictV: true }), true, `${v.name}: verifies with the signer's recoverPublicKey`);
+    if (v.input.data_hex !== "") {
+      const tampered = Uint8Array.from(item.binary);
+      tampered[tampered.length - 1] ^= 1;
+      assert.equal(await web.verifyDataItem(tampered, { recoverPublicKey }), false, `${v.name}: a flipped data byte is refused`);
+    }
+  }
+});
+
 test("the web build refuses a raw key and says why", () => {
   const { web } = loadWebBuild();
   assert.throws(

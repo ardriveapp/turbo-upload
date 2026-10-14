@@ -56,3 +56,23 @@ async function x402Types(walletClient: WalletClient, account: Account): Promise<
   return r.id + r.owner;
 }
 void x402Types;
+
+// An EVM signer for type 3: a viem LocalAccount plus viem's recoverPublicKey,
+// and a WalletClient through the adapter the README shows.
+import { recoverPublicKey, type WalletClient as EvmWalletClient, type Account as EvmAccount } from "viem";
+import { privateKeyToAccount as evmAccount } from "viem/accounts";
+import { type EvmSigner, verifyDataItem as verifyAny, SIGNATURE_TYPE_ETHEREUM } from "@ardrive/turbo-upload";
+const fromAccount: EvmSigner = { ...evmAccount(`0x${"11".repeat(32)}`), recoverPublicKey };
+async function evmTypes(walletClient: EvmWalletClient, account: EvmAccount): Promise<string> {
+  const adapted: EvmSigner = {
+    address: account.address,
+    signMessage: ({ message }) => walletClient.signMessage({ account, message }),
+    recoverPublicKey,
+  };
+  const c = TurboUpload.testnet({ signer: adapted, token: "base-eth" });
+  const item = await c.signAsync({ data: "x" });
+  const ok: boolean = await verifyAny(item.binary, { recoverPublicKey, strictV: true });
+  const strict: boolean = await c.verify(item.binary, { strictV: true });
+  return `${fromAccount.address}${ok}${strict}${SIGNATURE_TYPE_ETHEREUM}${c.token}`;
+}
+void evmTypes;

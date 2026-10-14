@@ -13,8 +13,9 @@
 const { Buffer } = require("node:buffer");
 const { privateKeyFromJwk, ownerFromJwk, addressFromOwner } = require("./ans104.js");
 const { TurboKeyError, TurboConfigError } = require("./errors.js");
+const { EVM_TOKENS } = require("./core/ethereum.js");
 
-/** The only token this package signs for. */
+/** The tokens a raw key signs for. */
 const SUPPORTED_TOKENS = ["arweave", "solana"];
 
 /** Fields an Arweave JWK must carry to be usable for signing. */
@@ -62,10 +63,18 @@ function parseJwk(input) {
  * @returns {{jwk: object, owner: Buffer, address: string, privateKey: import("node:crypto").KeyObject}}
  */
 function loadJwk(input, { token = "arweave" } = {}) {
+  if (EVM_TOKENS.includes(token)) {
+    throw new TurboConfigError(
+      `Token "${token}" signs through an EVM \`signer\`, not a raw key: this package carries no secp256k1. ` +
+        `Pass \`signer\`, for example a viem account with viem's recoverPublicKey (see README), ` +
+        `or use @ardrive/turbo-sdk, which signs with an Ethereum private key.`,
+    );
+  }
   if (!SUPPORTED_TOKENS.includes(token)) {
     throw new TurboConfigError(
-      `Unsupported token "${token}". This package signs Arweave JWKs ("arweave") and Solana keys ("solana"). ` +
-        `For Ethereum, KYVE, Polygon or other chains use @ardrive/turbo-sdk.`,
+      `Unsupported token "${token}". This package signs Arweave JWKs ("arweave") and Solana keys ("solana"), ` +
+        `and EVM signers (${EVM_TOKENS.map((t) => `"${t}"`).join(", ")}). ` +
+        `For KYVE, Polygon or other chains use @ardrive/turbo-sdk.`,
     );
   }
 

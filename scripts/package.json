@@ -1,7 +1,7 @@
 {
   "name": "turbo-upload-scripts",
   "private": true,
-  "description": "Not published. Developer scripts that talk to the Solana devnet, Base Sepolia and the testnet Turbo services. @solana/web3.js builds the SOL top-up transfer, which the package itself deliberately does not do; viem holds the throwaway EVM key for x402. Its dependencies are this directory's, never the package's.",
+  "description": "Not published. Developer scripts that talk to the Solana devnet, Base Sepolia and the testnet Turbo services. @solana/web3.js builds the SOL top-up transfer, which the package itself deliberately does not do; viem holds the throwaway EVM key for x402 and for the type 3 uploads. Its dependencies are this directory's, never the package's.",
   "license": "Apache-2.0",
   "engines": {
     "node": ">=22"
@@ -9,8 +9,9 @@
   "scripts": {
     "devnet": "node live-solana-devnet.js",
     "probe": "node probe-solana-devnet.js",
-    "guards": "node live-solana-devnet.js --check-guards && node live-base-sepolia-x402.js --check-guards",
-    "x402": "node live-base-sepolia-x402.js"
+    "guards": "node live-solana-devnet.js --check-guards && node live-base-sepolia-x402.js --check-guards && node live-base-sepolia-type3.js --check-guards",
+    "x402": "node live-base-sepolia-x402.js",
+    "type3": "node live-base-sepolia-type3.js"
   },
   "devDependencies": {
     "@solana/web3.js": "1.98.4",

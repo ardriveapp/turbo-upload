@@ -1,7 +1,8 @@
 "use strict";
 /**
  * TurboUpload for Node: sign ANS-104 data items with an Arweave JWK, a Solana
- * key, or a wallet-style signer, and upload them to a Turbo upload service.
+ * key, or a wallet-style signer (Solana or EVM), and upload them to a Turbo
+ * upload service.
  *
  * The client itself is shared with the web build (src/core/client.js). What
  * this file adds is what only Node has: node:crypto for hashing and for RSA
@@ -79,21 +80,29 @@ class TurboUpload extends TurboUploadCore {
   /**
    * @param {object} options
    * @param {object|string} [options.jwk] Arweave JWK (object or JSON string), or a Solana key with token "solana"
-   * @param {object} [options.signer] a wallet-style signer: { publicKey, signMessage, verify? }
+   * @param {object} [options.signer] a wallet-style signer: Solana { publicKey, signMessage, verify? },
+   *   or EVM { address, signMessage, recoverPublicKey, publicKey? } with an EVM token
    * @param {string} [options.uploadUrl]  default https://upload.ardrive.io
    * @param {string} [options.paymentUrl] default https://payment.ardrive.io
    * @param {number} [options.timeoutMs]  default 60000, per request
    * @param {object|false} [options.retry] partial retry config; merged over defaults
-   * @param {string} [options.token] "arweave" (default with jwk) or "solana" (default with signer)
+   * @param {string} [options.token] "arweave" (default with jwk), "solana" (default with signer),
+   *   or "ethereum", "base-eth" or "base-usdc" with an EVM signer
    * @param {typeof fetch} [options.fetch] injectable for tests/proxies
    */
   constructor(options = {}) {
     super(options, NODE_PLATFORM);
   }
 
-  /** Verify a serialized data item. Pass `{strictSaltLength:true}` to also pin the PSS salt length. */
+  /**
+   * Verify a serialized data item. Pass `{strictSaltLength:true}` to also pin
+   * the PSS salt length. A type 3 item needs `recoverPublicKey`, and the
+   * answer is then a promise; without it, a type 3 item throws. The signer's
+   * own is never filled in: a promise where the types promise a boolean is
+   * truthy, so `if (!client.verify(item))` would accept anything.
+   */
   verify(binary, opts = {}) {
-    assertKnownOptions(opts, ["strictSaltLength"], "verify()", TurboValidationError);
+    assertKnownOptions(opts, ["strictSaltLength", "recoverPublicKey", "strictV"], "verify()", TurboValidationError);
     return ans104.verifyDataItem(Buffer.isBuffer(binary) ? binary : Buffer.from(binary), opts);
   }
 }

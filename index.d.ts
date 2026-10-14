@@ -44,7 +44,39 @@ export type JWKInput = ArweaveJWK | string;
 export type SolanaKeyInput = string | Buffer | Uint8Array | number[];
 
 /** Tokens this package can sign for. Anything else throws in the constructor. */
-export type TurboToken = "arweave" | "solana";
+export type TurboToken = "arweave" | "solana" | EvmToken;
+
+/** The tokens an EVM signer pays with. */
+export type EvmToken = "ethereum" | "base-eth" | "base-usdc";
+
+/** Recover the uncompressed secp256k1 public key from a digest and a 65-byte signature. viem's `recoverPublicKey` is one. */
+export type RecoverPublicKey = (args: { hash: `0x${string}`; signature: `0x${string}` }) => Promise<string | Uint8Array> | string | Uint8Array;
+
+/**
+ * An EVM signer: ANS-104 type 3, with `token` "ethereum", "base-eth" or
+ * "base-usdc". The names are viem's, so `{ ...privateKeyToAccount(key),
+ * recoverPublicKey }` is one. This package carries no secp256k1: your EVM
+ * library signs, and recovers keys.
+ *
+ * `signMessage` is called once per item with the 48 raw bytes of its deep
+ * hash, as an EIP-191 personal message. Every signature is checked before it
+ * is used: v is normalised to 27 or 28, a high s or any length but 65 is
+ * refused, and the key recovered from it must be the item's owner. A
+ * smart-contract wallet cannot pass: TurboSignerError, nothing uploaded.
+ */
+export interface EvmSigner {
+  /** 0x and 40 hex characters. Checked against the public key, and reported in EIP-55 form. */
+  address: string;
+  /** EIP-191 personal_sign over raw bytes. Answers with 65 bytes, as 0x hex or bytes. */
+  signMessage(args: { message: { raw: Uint8Array } }): Promise<string | Uint8Array>;
+  recoverPublicKey: RecoverPublicKey;
+  /**
+   * The 65-byte uncompressed public key, 0x hex or bytes. Without it, the
+   * signer signs a fixed connect message once and the key is recovered from
+   * that signature.
+   */
+  publicKey?: string | Uint8Array;
+}
 
 export interface RetryConfig {
   /** Attempts AFTER the first try. 0 disables retrying. Default 3. */
@@ -87,10 +119,12 @@ export interface TurboUploadOptions {
    */
   jwk?: JWKInput | SolanaKeyInput;
   /**
-   * A wallet-style signer, in place of `jwk`. Signs Solana items (type 4), so
-   * `token` defaults to "solana". Use `signAsync()` rather than `sign()`.
+   * A wallet-style signer, in place of `jwk`. A Solana signer signs type 4
+   * items, and `token` defaults to "solana". An EVM signer signs type 3 items,
+   * and `token` must be one of "ethereum", "base-eth" or "base-usdc". Use
+   * `signAsync()` rather than `sign()`.
    */
-  signer?: SolanaWalletSigner;
+  signer?: SolanaWalletSigner | EvmSigner;
   /** Upload service base URL. Default https://upload.ardrive.io */
   uploadUrl?: string;
   /** Payment service base URL. Default https://payment.ardrive.io */
@@ -103,8 +137,9 @@ export interface TurboUploadOptions {
    * Which key `jwk` holds. Default "arweave", or "solana" with `signer`.
    *
    * "solana" signs ANS-104 type 4, matching what `@ardrive/turbo-sdk` emits for
-   * the same token, so ids agree between the two. Any other value throws a
-   * TurboConfigError up front.
+   * the same token, so ids agree between the two. "ethereum", "base-eth" and
+   * "base-usdc" take an EVM `signer` (type 3, also as turbo-sdk emits it) and
+   * no raw key. Any other value throws a TurboConfigError up front.
    */
   token?: TurboToken;
   /** Inject a fetch implementation (tests, proxies). Defaults to global fetch. */
@@ -181,7 +216,7 @@ export interface DataItemSizeOptions {
 export interface SignedDataItem {
   /** The complete signed data item, ready to POST. */
   binary: Buffer;
-  /** The 512 raw signature bytes. */
+  /** The raw signature: 512 bytes (Arweave), 65 (EVM) or 64 (Solana). */
   signature: Buffer;
   /** The raw 32-byte id: SHA-256 of the signature. */
   id: Buffer;
@@ -259,11 +294,16 @@ export declare class TurboUpload {
   /** A client pointed at production. */
   static production(options: Omit<TurboUploadOptions, "uploadUrl" | "paymentUrl"> & Partial<TurboUploadOptions>): TurboUpload;
 
-  /** The signing address: base64url(SHA-256(owner)) for Arweave, base58 for Solana. */
+  /** The signing address: base64url(SHA-256(owner)) for Arweave, base58 for Solana, EIP-55 0x for EVM. */
   readonly address: string;
-  /** The owner field as it appears on the wire: the 512-byte RSA modulus, or the 32-byte Ed25519 public key. */
+  /**
+   * The owner field as it appears on the wire: the 512-byte RSA modulus, the
+   * 32-byte Ed25519 public key, or the 65-byte secp256k1 public key. For an
+   * EVM signer with no `publicKey`, reading it throws TurboSignerError until
+   * the wallet's first signature.
+   */
   readonly owner: Buffer;
-  /** 1 (Arweave) or 4 (Solana). */
+  /** 1 (Arweave), 3 (EVM) or 4 (Solana). */
   readonly signatureType: number;
   readonly token: TurboToken;
   readonly uploadUrl: string;
@@ -297,9 +337,20 @@ export declare class TurboUpload {
   getInfo(options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<ServiceInfo>;
   /** The free-upload threshold, read live from /v1/info rather than hardcoded. */
   getFreeUploadLimitBytes(options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<number>;
-  /** Verify a serialized item. `strictSaltLength` also pins the PSS salt length. */
+  /**
+   * Verify a serialized item with `recoverPublicKey`, which type 3 needs. The
+   * answer is a promise. `strictV` also requires v to be the one that recovers
+   * the owner.
+   */
+  verify(binary: Buffer | Uint8Array, options: { recoverPublicKey: RecoverPublicKey; strictV?: boolean; strictSaltLength?: boolean }): Promise<boolean>;
+  /**
+   * Verify a serialized type 1 or type 4 item, synchronously, on any client.
+   * `strictSaltLength` also pins the PSS salt length. Throws for a type 3
+   * item, even on a client with an EVM signer: pass `recoverPublicKey`. 0.5.0
+   * returned false for one.
+   */
   verify(binary: Buffer | Uint8Array, options?: { strictSaltLength?: boolean }): boolean;
-  /** What `tokenAmount` base units of this client's token buy, in winc (lamports for Solana). */
+  /** What `tokenAmount` base units of this client's token buy, in winc (lamports for Solana; wei, or USDC base units for "base-usdc", for EVM). */
   getWincForToken(tokenAmount: IntegerAmount, options?: CallOptions): Promise<WincForToken>;
   /** The payment service's /v1/info. */
   getPaymentInfo(options?: CallOptions): Promise<PaymentInfo>;
@@ -334,7 +385,7 @@ export interface WincForToken {
   /** What the amount buys, in winc, after fees. */
   winc: string;
   fees: unknown[];
-  /** The amount priced, in base units (lamports for Solana). */
+  /** The amount priced, in base units (lamports for Solana; wei or USDC base units for EVM). */
   actualTokenAmount: string;
   equivalentWincTokenAmount: string;
 }
@@ -538,7 +589,22 @@ export declare function signDataItem(
   options: SignOptions & { owner?: Buffer | Uint8Array; privateKey?: KeyObject; saltLength?: number },
 ): SignedDataItem;
 
-/** Structural + cryptographic verification of a serialized item. */
+/**
+ * Structural + cryptographic verification of a serialized item, any type.
+ * Type 3 needs `recoverPublicKey`, and then the answer is a promise. By
+ * default a type 3 signature is checked as arbundles checks it, ignoring the
+ * v byte, so any of its 256 values verifies;
+ * `strictV` requires v to be 27 or 28 and the one that recovers the owner.
+ * Unlike arbundles, an owner with the hybrid prefix 0x06 or 0x07 is refused.
+ */
+export declare function verifyDataItem(
+  binary: Buffer | Uint8Array,
+  options: { recoverPublicKey: RecoverPublicKey; strictV?: boolean; strictSaltLength?: boolean },
+): Promise<boolean>;
+/**
+ * Structural + cryptographic verification of a type 1 or type 4 item. Throws
+ * for a type 3 item, a change from 0.5.0, which returned false for one.
+ */
 export declare function verifyDataItem(
   binary: Buffer | Uint8Array,
   options?: { strictSaltLength?: boolean },
@@ -613,6 +679,8 @@ export declare const MIN_ITEM_SIZE: number;
 export declare const PSS_SALT_LENGTH_BYTES: number;
 /** 1 */
 export declare const SIGNATURE_TYPE_ARWEAVE: number;
+/** 3 */
+export declare const SIGNATURE_TYPE_ETHEREUM: number;
 export declare const SIGNATURE_TYPE_SOLANA: number;
 export declare const DEFAULT_TIMEOUT_MS: number;
 export declare const DEFAULT_RETRY: RetryConfig;
@@ -696,9 +764,10 @@ export declare class TurboVerificationError extends TurboError {
 
 /**
  * A wallet-style signer could not produce a usable signature: signMessage
- * threw, returned something that is not 64 bytes, or returned a signature
- * that does not verify. Nothing was uploaded. Hardware wallets are the usual
- * cause: they cannot sign data items.
+ * threw, returned something of the wrong length (64 bytes for Solana, 65 for
+ * EVM), or returned a signature that does not verify. Nothing was uploaded.
+ * Hardware Solana wallets and smart-contract EVM wallets are the usual cause:
+ * they cannot sign data items.
  */
 export declare class TurboSignerError extends TurboError {
   constructor(message: string, options?: { cause?: unknown });

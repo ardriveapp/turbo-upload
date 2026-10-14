@@ -7,7 +7,7 @@ directory's; the package keeps none.
 ```bash
 npm ci                                   # Node >= 22
 npx playwright install --with-deps chromium firefox webkit
-npm test                                 # type 4 corpus in Chromium, Firefox, WebKit and jsdom
+npm test                                 # type 4 and type 3 corpora in Chromium, Firefox, WebKit and jsdom
 npm run jest                             # the same under jest-environment-jsdom
 npm run bundlers                         # which build esbuild, webpack 5 and Vite pick
 npm run types                            # web.d.ts without Node types, index.d.ts with them
@@ -19,6 +19,16 @@ resolves through its `browser` export condition, then signs every vector in
 `../conformance/type4-vectors.json` with a wallet-style signer
 (`@noble/ed25519` over the vector's seed) and compares the bytes with
 turbo-sdk's. It fails if `Buffer` or `process` exists in the page.
+
+The same run signs every vector in `../conformance/type3-vectors.json`
+through an injected EIP-1193 provider over the vector's test key, reached
+through a viem `WalletClient` with the adapter the package README shows. The
+provider has no public key to give, so each client signs the connect message
+once and then the 48 bytes of each item. Then five wallets that misbehave on
+the item: one signs the hex as text, one answers with a high s, one with 97
+bytes, one rejects the prompt, and one writes v as 0 or 1. The first four
+must fail with `TurboSignerError` before any request is made, and the last
+must produce an item that verifies with `strictV`.
 
 ## The devnet flow
 
