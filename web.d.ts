@@ -207,7 +207,7 @@ export declare class TurboUpload {
   static testnet(options: Omit<TurboUploadOptions, "uploadUrl" | "paymentUrl"> & Partial<TurboUploadOptions>): TurboUpload;
   static production(options: Omit<TurboUploadOptions, "uploadUrl" | "paymentUrl"> & Partial<TurboUploadOptions>): TurboUpload;
 
-  /** The signer's base58 Solana address. */
+  /** The signer's address: base58 for Solana, EIP-55 0x for EVM. */
   readonly address: string;
   /** The public key: 32 bytes (Solana) or 65 (EVM). For an EVM signer with no `publicKey`, reading it throws TurboSignerError until its first signature. */
   readonly owner: Uint8Array;
@@ -238,7 +238,7 @@ export declare class TurboUpload {
    * item with the signer's recoverPublicKey. Asynchronous, unlike the Node build.
    */
   verify(binary: Uint8Array, options?: { strictV?: boolean }): Promise<boolean>;
-  /** What `tokenAmount` base units of this client's token buy, in winc (lamports for Solana). */
+  /** What `tokenAmount` base units of this client's token buy, in winc (lamports for Solana; wei, or USDC base units for "base-usdc", for EVM). */
   getWincForToken(tokenAmount: IntegerAmount, options?: CallOptions): Promise<WincForToken>;
   /** The payment service's /v1/info. */
   getPaymentInfo(options?: CallOptions): Promise<PaymentInfo>;

@@ -201,8 +201,9 @@ over its 48 raw bytes, Keccak-256, the 65-byte layout and the EIP-55 address.
 account or any other ERC-1271 or ERC-6492 account answers `personal_sign`
 with something that is not a 65-byte signature from an externally owned key,
 so it fails here with `TurboSignerError` before anything is uploaded or
-charged. To pay from one, use an x402 upload instead (§ x402 uploads): the
-service signs the data item, and the wallet only authorizes a payment.
+charged. To pay from a deployed one, use an x402 upload instead (§ x402
+uploads): the service signs the data item, and the wallet only authorizes a
+payment.
 
 **Verifying.** `verifyDataItem(binary, { recoverPublicKey })` checks a type 3
 item, in both builds, and answers with a promise. In Node, pass it to

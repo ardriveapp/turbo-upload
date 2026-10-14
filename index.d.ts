@@ -350,7 +350,7 @@ export declare class TurboUpload {
    * returned false for one.
    */
   verify(binary: Buffer | Uint8Array, options?: { strictSaltLength?: boolean }): boolean;
-  /** What `tokenAmount` base units of this client's token buy, in winc (lamports for Solana). */
+  /** What `tokenAmount` base units of this client's token buy, in winc (lamports for Solana; wei, or USDC base units for "base-usdc", for EVM). */
   getWincForToken(tokenAmount: IntegerAmount, options?: CallOptions): Promise<WincForToken>;
   /** The payment service's /v1/info. */
   getPaymentInfo(options?: CallOptions): Promise<PaymentInfo>;
@@ -385,7 +385,7 @@ export interface WincForToken {
   /** What the amount buys, in winc, after fees. */
   winc: string;
   fees: unknown[];
-  /** The amount priced, in base units (lamports for Solana). */
+  /** The amount priced, in base units (lamports for Solana; wei or USDC base units for EVM). */
   actualTokenAmount: string;
   equivalentWincTokenAmount: string;
 }

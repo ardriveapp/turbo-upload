@@ -95,11 +95,17 @@ WebCrypto has no secp256k1 at all, and the package does not carry its own
 curve code for private keys. `token` is
 `"ethereum"`, `"base-eth"` or `"base-usdc"` and is required with an EVM
 signer. A wallet with no `publicKey` signs one connect message the first
-time, so its key can be recovered. Every item signature is checked before
-upload, and a smart-contract wallet (ERC-1271, ERC-6492) throws
-`TurboSignerError` with nothing uploaded: it cannot sign data items. A deployed
-one can pay for an x402 upload instead (below). `client.address` is the EIP-55 `0x` address, and the free quota is that
-address's.
+time, so its key can be recovered; until then, reading `client.owner` throws
+`TurboSignerError`. Every item signature is checked before upload, and a
+smart-contract wallet (ERC-1271, ERC-6492) throws `TurboSignerError` with
+nothing uploaded: it cannot sign data items. A deployed one can pay for an
+x402 upload instead (below). `client.address` is the EIP-55 `0x` address,
+and the free quota is that address's.
+
+To verify a type 3 item in Node, pass `recoverPublicKey`:
+`await client.verify(item, { recoverPublicKey })`. Without it, `verify` is a
+synchronous boolean for types 1 and 4 and throws for type 3. In the web build
+`client.verify` always returns a promise and uses the signer's own.
 
 ## Upload one thing
 
