@@ -649,7 +649,9 @@ Structural and cryptographic verification. § The PSS salt length, and why it is
 478 explains what `strictSaltLength` catches. Without `recoverPublicKey` the
 answer is a boolean, on every client, and a type 3 item throws. With it, any
 item is checked and the answer is a promise (§ EVM signers). In the web build
-both forms return a promise.
+`client.verify(binary, { strictV? })` always returns a promise, using the
+signer's own `verify` or `recoverPublicKey`; it takes no `recoverPublicKey`
+option.
 
 ### Low-level exports
 

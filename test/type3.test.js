@@ -169,6 +169,9 @@ test("type 3, a wallet with no public key: the connect message once, then the de
     const client = new TurboUpload({ signer, token: "ethereum" });
     assert.throws(() => client.owner, (err) => err instanceof TurboSignerError && /publicKey/.test(err.message),
       "unknown until the wallet has signed, and says so rather than answering undefined");
+    assert.doesNotThrow(() => JSON.stringify(client), "JSON.stringify skips the unknown owner");
+    assert.doesNotThrow(() => ({ ...client }), "spreading skips it");
+    assert.doesNotThrow(() => Object.entries(client));
     assert.equal(client.getDataItemSize(inputOf(v)), v.expected.signed_item_length, "sized before the key is known");
     const item = await client.signAsync(inputOf(v));
     assert.equal(item.binary.toString("hex"), v.expected.signed_item_hex, v.name);

@@ -141,10 +141,11 @@ class TurboUploadCore {
         // known until the wallet has signed once; see ./ethereum.js.
         const wallet = ethereum.normalizeEthereumSigner(signer);
         Object.defineProperty(this, "_walletSigner", { value: wallet });
-        // A getter, so `owner` is never undefined: it throws until the key is known.
+        // A getter, so `owner` is never undefined: it throws until the key is
+        // known. Not enumerable, so JSON.stringify and spreading skip it.
         let owner;
         Object.defineProperty(this, "owner", {
-          enumerable: true,
+          enumerable: false,
           get() {
             if (!owner && wallet.publicKey) owner = platform.output(Uint8Array.from(wallet.publicKey));
             if (!owner) {
