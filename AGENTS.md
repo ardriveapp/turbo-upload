@@ -18,12 +18,14 @@ signs ANS-104 data items, pays for them and uploads them to Turbo.
 - **Paying**: prices, balances, the free quota, reporting a SOL top-up you
   sent, sharing credits, `paidBy`, Stripe checkout sessions.
 - **Large items**: chunked uploads, from bytes or from a stream.
+- **x402**: an EVM wallet pays USDC on Base for an upload that the service
+  signs (`uploadUnsignedX402`, both builds). The service owns the item.
 
 **Stop and use `@ardrive/turbo-sdk`** if the task needs a key that is not
-Arweave or Solana (Ethereum, KYVE, Polygon), ArNS, x402, folder or ArDrive
-abstractions, packing your own bundles, or a client that builds and sends
-the SOL transfer itself. This package reports a transfer; your wallet or RPC
-library sends it.
+Arweave or Solana to sign data items (Ethereum, KYVE, Polygon), signed or
+chunked x402 uploads, ArNS, folder or ArDrive abstractions, packing your own
+bundles, or a client that builds and sends the SOL transfer itself. This
+package reports a transfer; your wallet or RPC library sends it.
 
 Both can be installed together. They share no state.
 
@@ -123,6 +125,38 @@ Send the transfer yourself, to `await client.getFundingAddress()`, wait for
 `status` is `"confirmed"`, `"pending"` (submit again later) or `"failed"`.
 Submitting twice credits once.
 
+## Pay in USDC from an EVM wallet (x402)
+
+```js
+import { privateKeyToAccount } from "viem/accounts";
+import { uploadUnsignedX402, TESTNET } from "@ardrive/turbo-upload";
+
+export async function uploadWithUsdc(bytes) {
+  const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY); // a viem LocalAccount works as is
+  const { id, payer, x402Payment } = await uploadUnsignedX402({
+    data: bytes,
+    tags: [{ name: "Content-Type", value: "image/png" }],
+    signer,
+    maxUsdc: 50_000n,               // required, USDC base units: 0.05 USDC
+    uploadUrl: TESTNET.uploadUrl,   // Base Sepolia; production pays on Base
+  });
+  return { id, payer, tx: x402Payment?.transactionHash };
+}
+```
+
+A function, not a client method, and no data-item key: the service signs the
+item, so `owner` is the service and your address is `payer`. **There is no free
+tier here**: every upload is paid, with a minimum price
+([README § x402 uploads](README.md#x402-uploads-pay-in-usdc-from-an-evm-wallet)). The
+signer signs one EIP-712 authorization for exactly what the service's `402`
+asks; over `maxUsdc`, another network or another asset throws
+`TurboPaymentError` before anything is signed. For a viem `WalletClient`, pass
+`{ address, signTypedData: (t) => walletClient.signTypedData({ account, ...t }) }`.
+The first Content-Type tag becomes the item's Content-Type, and every other
+tag is stored as given, non-ASCII values included, up to 3072 tag bytes. One request carries at most
+`X402_MAX_DATA_BYTES` (about 75 MiB), and the paid request is never retried:
+if it fails, the error says the payment might have settled.
+
 ## Upload something large
 
 `upload()` sends an item over 10 MiB in 5 MiB chunks without being asked.
@@ -219,7 +253,7 @@ catches all of them.
 
 | Class | Catch it to | Read off it |
 |---|---|---|
-| `TurboPaymentError` | tell "cannot pay" from a transient failure. **Retrying never helps** | `status`, `body` |
+| `TurboPaymentError` | tell "cannot pay" from a transient failure. **Retrying never helps**. After an x402 payment is sent, check the payer's USDC transfers first | `status`, `body` |
 | `TurboVerificationError` | detect an id that is not the one you signed. **Never swallow this** | `expectedId`, `receivedId` |
 | `TurboSignerError` | tell a wallet that cannot sign data items (a Ledger) from a network failure. Nothing was uploaded | `cause` |
 | `TurboChunkedUploadError` | report a chunked upload that did not finalize | `uploadId`, `uploadStatus` |

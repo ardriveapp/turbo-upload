@@ -11,10 +11,12 @@
  */
 
 const { Buffer } = require("node:buffer");
+const { randomBytes } = require("node:crypto");
 const ans104 = require("./ans104.js");
 const { loadJwk } = require("./jwk.js");
 const { parseSolanaKey, verifyEd25519Raw, signEd25519 } = require("./ed25519.js");
 const { TurboUploadCore, assertKnownOptions } = require("./core/client.js");
+const x402 = require("./core/x402.js");
 const { TurboValidationError } = require("./errors.js");
 
 /** What the Node build provides the shared client. */
@@ -96,4 +98,9 @@ class TurboUpload extends TurboUploadCore {
   }
 }
 
-module.exports = { TurboUpload };
+/** Upload raw bytes paid for with an x402 USDC authorization. See README. */
+function uploadUnsignedX402(options) {
+  return x402.uploadUnsignedX402(options, { randomBytes: (n) => randomBytes(n) });
+}
+
+module.exports = { TurboUpload, uploadUnsignedX402 };

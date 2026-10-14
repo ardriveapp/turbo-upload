@@ -117,6 +117,7 @@ async function readBody(res) {
  * @param {AbortSignal} [opts.signal] caller's signal; composed with the timeout
  * @param {object} [opts.retry] resolved retry config
  * @param {number[]} [opts.allowedStatuses] statuses to return rather than throw on
+ * @param {RequestRedirect} [opts.redirect] passed to fetch when set
  * @param {typeof fetch} [opts.fetch]
  */
 async function request({
@@ -128,6 +129,7 @@ async function request({
   signal,
   retry,
   allowedStatuses = [],
+  redirect,
   fetch: fetchImpl,
 }) {
   const doFetch = fetchImpl ?? globalThis.fetch;
@@ -149,7 +151,7 @@ async function request({
 
     let res;
     try {
-      res = await doFetch(url, { method, body, headers, signal: composed });
+      res = await doFetch(url, redirect ? { method, body, headers, signal: composed, redirect } : { method, body, headers, signal: composed });
     } catch (cause) {
       clearTimeout(timer);
       // Distinguish the caller aborting from our own timeout firing: the caller
@@ -171,7 +173,8 @@ async function request({
         });
       } else {
         lastError = new TurboNetworkError(
-          `${method} ${url} failed before any response was received: ${cause?.message ?? cause}. ` +
+          `${method} ${url} failed before any response was received: ${cause?.message ?? cause}` +
+            `${cause?.cause?.message ? ` (${cause.cause.message})` : ""}. ` +
             `Check the hostname resolves and is reachable.`,
           { endpoint: url, method, cause },
         );

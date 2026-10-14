@@ -24,6 +24,7 @@
     "jsdom": "29.1.1",
     "playwright": "1.63.0",
     "typescript": "7.0.2",
+    "viem": "2.57.5",
     "vite": "8.3.2",
     "webpack": "5.111.1"
   }

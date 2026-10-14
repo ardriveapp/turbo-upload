@@ -48,10 +48,12 @@ and a CLI, and that costs a dependency tree:
 | `@ardrive/turbo-sdk@1.43.0` | 784 | 895 MB |
 | `@ardrive/turbo-upload@0.3.0` | 1 | 488 KB |
 | `@ardrive/turbo-upload@0.5.0` | 1 | 700 KB |
+| `@ardrive/turbo-upload@0.6.0` | 1 | 784 KB |
 
-Measured 2026-09-11 (0.5.0: 2026-10-01) into an empty project with `npm install`. Re-run it rather
-than trusting this table: the numbers move as either tree changes, and the
-point is the shape, not the digits.
+Measured 2026-09-11 (0.5.0: 2026-10-01, 0.6.0: 2026-10-13, from an `npm pack`
+tarball of the release commit) into an empty project with `npm install`, size
+from `du -sk`. Re-run it rather than trusting this table: the numbers move as
+either tree changes, and the point is the shape, not the digits.
 
 When you are adding Arweave storage to *someone else's* server, the size of
 that tree is what a dependency review weighs, and every package in it is a
@@ -64,16 +66,19 @@ nothing else in it.
 - Runs in Node and in browsers, workers and jsdom, with no polyfills
 - Uploads them to a Turbo upload service, in one request or in chunks, from bytes or from a stream
 - Prices uploads, reads balances and the free quota, submits SOL top-ups, shares credits, pays with `x-paid-by`, and opens Stripe checkout sessions
+- Pays for uploads in USDC on Base over x402 from an EVM wallet, on the route where the service signs the data item
 - Verifies data items, including a strict mode most implementations do not have
 
 ## Use `@ardrive/turbo-sdk` instead if you need
 
-Ethereum, KYVE or Polygon keys · ArNS · x402 · the CLI, folder uploads, or
-ArDrive drive abstractions · packing your own bundles · a client that builds
-and sends the SOL transfer for you.
+Ethereum, KYVE or Polygon keys to sign data items · signed or chunked x402
+uploads · ArNS · the CLI, folder uploads, or ArDrive drive abstractions ·
+packing your own bundles · a client that builds and sends the SOL transfer
+for you.
 
 If you sign with an Arweave or Solana key or wallet and upload bytes, this
-package does it and brings nothing with it.
+package does it and brings nothing with it. So does paying from an EVM wallet
+over x402 when the service signs the item (§ x402 uploads).
 
 ---
 
@@ -236,6 +241,92 @@ refuses one before anything is signed.
 opens a Stripe checkout for $10.00 (`amount` is in cents) and returns its
 `url`. The testnet payment service answers with a Stripe test-mode session.
 
+## x402 uploads: pay in USDC from an EVM wallet
+
+The unsigned x402 route takes raw bytes. Your EVM wallet signs one USDC
+payment authorization (EIP-3009 `TransferWithAuthorization`, as EIP-712 typed
+data), and the service wraps the bytes into a data item that it signs with its
+own key. The wallet never signs a data item, so this works for wallets that
+cannot.
+
+```js
+import { privateKeyToAccount } from "viem/accounts";
+import { uploadUnsignedX402, getUnsignedX402Price, TESTNET } from "@ardrive/turbo-upload";
+
+const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY);
+const data = new TextEncoder().encode("hello from an EVM wallet");
+
+// Testnet pays in Base Sepolia USDC. Drop `uploadUrl` for production, which pays on Base.
+const estimate = await getUnsignedX402Price({ byteCount: data.length, uploadUrl: TESTNET.uploadUrl });
+const { id, owner, payer, x402Payment } = await uploadUnsignedX402({
+  data,
+  tags: [{ name: "Content-Type", value: "text/plain" }],
+  signer,
+  maxUsdc: 50_000n,              // the most this upload may pay: 0.05 USDC, in base units (6 decimals)
+  uploadUrl: TESTNET.uploadUrl,
+});
+console.log(estimate.usdcAmount, id, owner, payer, x402Payment?.transactionHash);
+```
+
+**The service owns the data item.** `owner` is the service's wallet, because
+it signed the item; your address is recorded as `payer`. There is no signature
+of yours to check the id against. To own the item, sign it with an Arweave or
+Solana key and pay with credits.
+
+**There is no free tier on this route.** Every upload is paid, however small:
+production asks at least 10000 base units (0.01 USDC), even for 100 bytes.
+
+**`maxUsdc` is required.** The service answers the first request with a `402`
+naming its price, and the authorization is for exactly that amount. Before
+anything is signed, the upload is refused with `TurboPaymentError` when that
+price is over `maxUsdc`, when the payment is on another network than the
+service's (`PRODUCTION` pays on Base, `TESTNET` on Base Sepolia, any other
+`uploadUrl` needs `network`), or when the asset is not USDC on that network.
+The EIP-712 domain name comes from the `402`, because it differs: "USD Coin" in
+production, "USDC" on testnet.
+
+**The price route is an estimate.** `getUnsignedX402Price` can read lower than
+the `402`: on testnet it quoted 1377 for a small item whose `402` asked 18072
+(measured 2026-10-13). Set `maxUsdc` from what you are willing to pay.
+
+**The bytes are sent twice**, once to be quoted and once with the payment.
+The paid request is never retried, so an authorization is submitted at most
+once. If it fails, the error says the payment might have settled: check the
+payer's USDC transfers before you upload again. The service answers `402` when
+settling fails as well as when it refuses, so a `402` here is no proof that
+nothing was paid. A payment is never sent over plain HTTP, except to a loopback address,
+and a redirect is refused rather than followed.
+
+**Tags travel in the route's JSON envelope**, with the bytes as base64: the
+first Content-Type tag becomes the item's Content-Type, and every other tag is
+stored as given, including values that are not ASCII. The tags can take at
+most 3072 bytes serialized: the service adds its own after the payment
+settles, and the item's tags must fit in `MAX_TAG_BYTES`. The envelope makes the
+request four bytes for every three of data, and the service takes a request of
+at most 100 MiB, so one upload carries at most `X402_MAX_DATA_BYTES`
+(78643182 bytes, about 75 MiB, less a little for tags). Chunked x402 uploads
+need `@ardrive/turbo-sdk`.
+
+**The signer** is any object with `address` and `signTypedData(typedData)`
+that resolves to a `0x` hex signature. A viem `LocalAccount` works as is. A
+viem `WalletClient` (a browser wallet) needs one line:
+
+```js
+export const x402Signer = (walletClient, account) => ({
+  address: account.address,
+  signTypedData: (typedData) => walletClient.signTypedData({ account, ...typedData }),
+});
+```
+
+This package builds the typed data, the payment and the `X-PAYMENT` header,
+and does no secp256k1 or keccak itself, so it cannot check the signature: the
+service does. A deployed smart-contract wallet works: the service checks its
+signature through ERC-1271 (tested paid on Base Sepolia with a Coinbase Smart
+Wallet). A smart account that is not deployed yet signs with an ERC-6492
+wrapper, which the service refuses with a `402` and does not charge for; the
+`TurboPaymentError` says to deploy the account first (any first transaction
+does it). In a browser, the nonce comes from `crypto.getRandomValues`.
+
 ## Large items: chunked uploads
 
 An item of more than two chunks (over 10 MiB at the default 5 MiB chunk)
@@ -284,8 +375,9 @@ exercise chunking with a small item, send it with `chunking: "force"`.
 | jsdom | jsdom directly, and Jest's `jest-environment-jsdom` |
 | Bundlers | esbuild, webpack 5, Vite (see § In the browser) |
 | Keys | Arweave JWK (Node), Solana key (Node), Solana wallet signer (both builds) |
+| x402 | an EVM signer pays USDC for the unsigned route (both builds); the service signs the item |
 
-Ethereum, KYVE and Polygon keys are not supported in either build.
+Ethereum, KYVE and Polygon keys cannot sign data items in either build.
 
 ## Coming from `@ardrive/turbo-sdk`
 
@@ -319,6 +411,7 @@ What changes beyond the call:
 | `getBalance()` returns a signed-in account | `getBalance()` returns zeros for an unknown wallet, because the service answers `404` |
 | errors arrive as `fetch failed` | typed errors that name the endpoint, the status and the method |
 | any supported token | Arweave JWKs, Solana keys and Solana wallets. Anything else throws at construction |
+| `uploadRawX402Data({ data, tags, maxMUSDCAmount })` on an EVM client | `uploadUnsignedX402({ data, tags, signer, maxUsdc })`, no client and no key that signs items |
 
 **Keep turbo-sdk** for the cases in § Use `@ardrive/turbo-sdk` instead if you need. Nothing stops both being
 installed; they share no state.
@@ -450,6 +543,14 @@ balance at all.
 `createCheckoutSession({ amount, currency?, owner?, ... })`. See § Paying for
 uploads.
 
+### `await uploadUnsignedX402({ data, tags?, signer, maxUsdc, uploadUrl?, network?, signal?, timeoutMs?, fetch? })`
+
+Functions, not client methods: a client needs a key that signs data items, and
+this route needs none. `uploadUrl` defaults to production. Returns the
+service's answer: `id`, `owner`, `payer`, `x402Payment` and the receipt fields.
+`getUnsignedX402Price({ byteCount, tags?, uploadUrl?, network? })` returns the
+price route's answer, `usdcAmount` among it. See § x402 uploads.
+
 ### `client.verify(binary, { strictSaltLength? })` → `boolean`
 
 Structural and cryptographic verification. § The PSS salt length, and why it is
@@ -466,7 +567,8 @@ Structural and cryptographic verification. § The PSS salt length, and why it is
 
 Constants: `MAX_TAG_BYTES` (4096) · `MIN_ITEM_SIZE` (1044) ·
 `PSS_SALT_LENGTH_BYTES` (478) · `SIGNATURE_TYPE_ARWEAVE` (1) · `PRODUCTION` ·
-`TESTNET` · `DEFAULT_TIMEOUT_MS` · `DEFAULT_RETRY`.
+`TESTNET` · `DEFAULT_TIMEOUT_MS` · `DEFAULT_RETRY` · `X402_NETWORKS` (USDC
+per network) · `X402_MAX_DATA_BYTES`.
 
 ### Types
 
@@ -492,9 +594,9 @@ Every error extends `TurboError` and carries its context.
 | `TurboNetworkError` | no response at all (DNS, TLS, reset) | `endpoint`, `method`, `cause` |
 | `TurboTimeoutError` | exceeded `timeoutMs`, or caller aborted | `endpoint`, `timeoutMs`, `cause` |
 | `TurboHTTPError` | non-2xx | `status`, `endpoint`, `method`, `body` |
-| `TurboPaymentError` | `402`, the wallet cannot pay. A `TurboHTTPError`, so existing catches still work | `status`, `endpoint`, `method`, `body` |
+| `TurboPaymentError` | `402`, the wallet cannot pay, or an x402 upload refused the service's terms before signing. On an x402 upload's paid request the payment might have settled, and the message says so. A `TurboHTTPError`, so existing catches still work | `status`, `endpoint`, `method`, `body` |
 | `TurboVerificationError` | the service returned an id we did not sign | `expectedId`, `receivedId` |
-| `TurboSignerError` | a wallet signer threw, answered with something other than 64 bytes, or signed something else. Nothing was uploaded | `cause` |
+| `TurboSignerError` | a wallet signer threw, answered with something other than 64 bytes, or signed something else; or an x402 signer threw or returned no hex signature. Nothing was uploaded or paid | `cause` |
 | `TurboChunkedUploadError` | a chunked upload did not finalize (`INVALID`, or the wait ran out). `UNDERFUNDED` is a `TurboPaymentError` | `uploadId`, `uploadStatus` |
 
 ```
@@ -603,6 +705,11 @@ complete type 4 (Solana) items generated by `@ardrive/turbo-sdk@2.1.0`. Ed25519
 is deterministic, so it pins every byte, signature and id included; both
 builds reproduce it, in Node, in three browsers and in jsdom. It does not
 ship, to keep the package small.
+
+For x402, `conformance/x402-vectors.json` holds the payments the `x402`
+package's own client builds from one fixed account, clock and nonce. This
+package reproduces each typed data, signature and `X-PAYMENT` header exactly,
+and each signature recovers to the account under viem.
 
 Reimplementing the format rather than consuming it? [The conformance
 spec](https://github.com/ardriveapp/turbo-upload/blob/main/conformance/spec.md) has the byte-level rules, including the two adjacent 32-byte

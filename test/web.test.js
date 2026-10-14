@@ -24,7 +24,7 @@ const ROOT = path.join(__dirname, "..");
  * Load web.js in a new realm. Globals are what a browser page has that this
  * build uses (fetch, AbortController, timers), and nothing else.
  */
-function loadWebBuild({ fetch } = {}) {
+function loadWebBuild({ fetch, crypto: webCrypto } = {}) {
   const context = vm.createContext({
     console,
     setTimeout,
@@ -33,6 +33,8 @@ function loadWebBuild({ fetch } = {}) {
     AbortSignal,
     fetch,
     Response,
+    URL,
+    ...(webCrypto ? { crypto: webCrypto } : {}),
   });
   const cache = new Map();
   const load = (file) => {
@@ -127,4 +129,38 @@ test("the web build uploads with x-paid-by, through fetch, and returns plain byt
   assert.equal(captured.init.body.constructor.name, "Uint8Array", "the body is not a Buffer");
   assert.equal(res.id.length, 43);
   assert.equal(node.verifyDataItem(Buffer.from(captured.init.body)), true, "the item verifies under the Node build");
+});
+
+test("the web build pays for an x402 upload with the page's crypto, and refuses without it", async () => {
+  const calls = [];
+  const fetch = async (url, init) => {
+    calls.push(init);
+    const body = calls.length === 1
+      ? { x402Version: 1, accepts: [{ scheme: "exact", network: "base-sepolia", maxAmountRequired: "18072", payTo: `0x${"9".repeat(40)}`, maxTimeoutSeconds: 3600, asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", extra: { name: "USDC", version: "2" } }] }
+      : { id: "y".repeat(43), payer: `0x${"1".repeat(40)}` };
+    return new Response(JSON.stringify(body), { status: calls.length === 1 ? 402 : 200, headers: { "content-type": "application/json" } });
+  };
+  const signer = { address: `0x${"1".repeat(40)}`, signTypedData: async () => `0x${"ab".repeat(65)}` };
+  const { web } = loadWebBuild({ fetch, crypto: crypto.webcrypto });
+  const res = await web.uploadUnsignedX402({ data: "from a page", tags: [{ name: "Title", value: "Ünïcode ✓" }], signer, maxUsdc: 20000n, uploadUrl: web.TESTNET.uploadUrl });
+  assert.equal(res.id, "y".repeat(43));
+  assert.equal(calls[1].body.constructor.name, "Uint8Array", "the body is not a Buffer");
+  assert.equal(calls[1].redirect, "error");
+  assert.deepEqual(JSON.parse(Buffer.from(calls[1].body).toString("utf8")),
+    { data: Buffer.from("from a page").toString("base64"), tags: [{ name: "Title", value: "Ünïcode ✓" }] });
+  const nonceOf = (call) => JSON.parse(Buffer.from(call.headers["X-PAYMENT"], "base64").toString("utf8")).payload.authorization.nonce;
+  const first = nonceOf(calls[1]);
+  calls.length = 0;
+  await web.uploadUnsignedX402({ data: "again", signer, maxUsdc: 20000n, uploadUrl: web.TESTNET.uploadUrl });
+  assert.match(first, /^0x[0-9a-f]{64}$/);
+  assert.notEqual(first, `0x${"0".repeat(64)}`);
+  assert.notEqual(nonceOf(calls[1]), first, "a fresh nonce per payment");
+
+  calls.length = 0;
+  const bare = loadWebBuild({ fetch }).web;
+  await assert.rejects(
+    bare.uploadUnsignedX402({ data: "x", signer, maxUsdc: 20000n, uploadUrl: bare.TESTNET.uploadUrl }),
+    (err) => err.name === "TurboConfigError" && /crypto\.getRandomValues/.test(err.message),
+  );
+  assert.equal(calls.length, 0, "refused before anything is sent");
 });

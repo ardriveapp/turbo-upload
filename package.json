@@ -1,7 +1,7 @@
 {
   "name": "@ardrive/turbo-upload",
-  "version": "0.5.0",
-  "description": "A light Turbo client for Node and browsers, with zero dependencies: ANS-104 data-item signing (Arweave JWKs, Solana keys, wallet signers) and upload.",
+  "version": "0.6.0",
+  "description": "A light Turbo client for Node and browsers, with zero dependencies: ANS-104 data-item signing (Arweave JWKs, Solana keys, wallet signers), upload, and x402 uploads paid in USDC from an EVM wallet.",
   "keywords": [
     "arweave",
     "ed25519",
@@ -15,7 +15,10 @@
     "zero-dependency",
     "browser",
     "wallet",
-    "upload"
+    "upload",
+    "x402",
+    "usdc",
+    "base"
   ],
   "license": "Apache-2.0",
   "main": "index.js",

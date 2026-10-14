@@ -14,7 +14,8 @@
  * from ESM.
  */
 
-const { TurboUpload, verifyDataItem } = require("./src/web/client.js");
+const { TurboUpload, verifyDataItem, uploadUnsignedX402 } = require("./src/web/client.js");
+const { getUnsignedX402Price, X402_NETWORKS, X402_MAX_DATA_BYTES } = require("./src/core/x402.js");
 const { PRODUCTION, TESTNET } = require("./src/core/endpoints.js");
 const { DEFAULT_TIMEOUT_MS, DEFAULT_RETRY } = require("./src/core/http.js");
 const { jsHashes } = require("./src/core/sha2.js");
@@ -62,6 +63,10 @@ module.exports = {
   // The client
   TurboUpload,
 
+  // x402 uploads: an EVM wallet pays in USDC, the service signs the item
+  uploadUnsignedX402,
+  getUnsignedX402Price,
+
   // Endpoint configs
   PRODUCTION,
   TESTNET,
@@ -84,6 +89,8 @@ module.exports = {
   SIGNATURE_TYPE_SOLANA,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_RETRY,
+  X402_NETWORKS,
+  X402_MAX_DATA_BYTES,
 
   // Errors
   TurboError,

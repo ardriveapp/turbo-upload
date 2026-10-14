@@ -19,6 +19,17 @@
  * package posts to /v1/tx, as every version before it did; turbo-sdk posts to
  * /v1/tx/{token}. Probed on devnet, the service treats the two identically,
  * x-paid-by included. Exits non-zero on any other difference.
+ *
+ * The x402 upload is compared up to the payment: turbo-sdk pays through the
+ * optional peer x402-fetch, which this directory does not install, so both
+ * clients send the unpaid request and stop at the 402. The payment itself is
+ * pinned by x402.js against vectors from the x402 package.
+ *
+ * Its body differs by design, and that is asserted rather than excused.
+ * turbo-sdk posts the raw bytes with the tags in x-data-item-tags, a header
+ * the service does not read on this route, so its tags are dropped. This
+ * package posts the route's JSON envelope; the check is that the envelope
+ * carries the same bytes and the same tags turbo-sdk meant to send.
  */
 const http = require("node:http");
 const crypto = require("node:crypto");
@@ -77,6 +88,13 @@ function answer(method, url, body) {
       ...(approve ? { createdApproval: { approvalDataItemId: id, approvedAddress: approve.value, approvedWincAmount: tags.find((t) => t.name === "x-amount").value } } : {}),
     });
   }
+  if (method === "GET" && /^\/v1\/price\/x402\/data\/usdc-base\/\d+$/.test(path)) return json({ usdcAmount: "10000", estimatedDataItemSize: 2786, network: "base" });
+  if (method === "POST" && path === "/v1/x402/upload/unsigned") {
+    return json({ x402Version: 1, error: "Payment required", accepts: [{
+      scheme: "exact", network: "base", maxAmountRequired: "10000", resource: "https://upload.test/v1/tx", description: "Upload", mimeType: "application/octet-stream", payTo: "0x9B13eb5096264B12532b8C648Eba4A662b4078ce",
+      maxTimeoutSeconds: 3600, asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", extra: { name: "USD Coin", version: "2" },
+    }] }, 402);
+  }
   return { status: 404, body: "not routed" };
 }
 
@@ -113,6 +131,10 @@ async function main() {
   });
   const ours = new pkg.TurboUpload({ jwk: secretKey, token: "solana", uploadUrl: base, paymentUrl: base });
   const viaSigner = new pkg.TurboUpload({ signer: pkg.createSolanaSigner(secretKey), uploadUrl: base, paymentUrl: base });
+  const sdkEvm = TurboFactory.unauthenticated({ token: "base-usdc", paymentServiceConfig: { url: base }, uploadServiceConfig: { url: base } });
+  /** An x402 upload that stops at the 402, as turbo-sdk's does with no signer. */
+  const stopAtQuote = (call) => call().catch((err) => ({ stoppedAt: err.status ?? err.message }));
+  const quoteOnly = { address: `0x${"1".repeat(40)}`, signTypedData: async () => { throw new Error("stop at the quote"); } };
 
   const data = Buffer.from("wire parity payload");
   const tags = [{ name: "Content-Type", value: "text/plain" }];
@@ -137,9 +159,13 @@ async function main() {
       () => ours.upload({ data: big, tags, paidBy: payer, chunking: "force", chunkConcurrency: 1 })],
     ["upload with paidBy, wallet signer", () => sdk.uploadFile({ fileStreamFactory: () => data, fileSizeFactory: () => data.length, dataItemOpts: { tags, paidBy: payer } }),
       () => viaSigner.upload({ data, tags, paidBy: payer })],
+    ["x402 price", () => sdkEvm.getX402PriceForRawData({ byteCount: 1234, network: "base", tagCount: 1 }),
+      () => pkg.getUnsignedX402Price({ byteCount: 1234, tags, uploadUrl: base, network: "base" })],
+    ["x402 unsigned upload, to the 402", () => stopAtQuote(() => sdkEvm.uploadRawX402Data({ data, tags })),
+      () => stopAtQuote(() => pkg.uploadUnsignedX402({ data, tags, signer: quoteOnly, maxUsdc: 10000n, uploadUrl: base, network: "base" }))],
   ];
 
-  const READ = ["content-type", "x-paid-by", "x-chunking-version"];
+  const READ = ["content-type", "x-paid-by", "x-chunking-version", "x-data-item-tags"];
   let failures = 0;
   const rows = [];
   for (const [name, viaSdk, viaUs] of calls) {
@@ -154,6 +180,17 @@ async function main() {
       const x = a[i];
       const y = b[i];
       const routeOnly = x.url === "/v1/tx/solana" && y.url === "/v1/tx";
+      if (x.url === "/v1/x402/upload/unsigned" && y.headers["content-type"] === "application/json") {
+        const e = JSON.parse(y.body.toString("utf8"));
+        const meant = JSON.parse(x.headers["x-data-item-tags"] ?? "[]");
+        const ct = meant.find((t) => t.name === "Content-Type");
+        const same = Buffer.from(e.data, "base64").equals(x.body) && e.contentType === (ct && ct.value) &&
+          JSON.stringify(e.tags) === JSON.stringify(meant.filter((t) => t !== ct));
+        if (!same) problems.push("the envelope does not carry turbo-sdk's bytes and tags");
+        // Compared through the envelope, so the raw body and the two headers are not.
+        x.body = y.body;
+        for (const h of ["content-type", "x-data-item-tags"]) delete x.headers[h], delete y.headers[h];
+      }
       // Each run opens its own upload, so the id in a chunk path differs by design.
       x.url = x.url.replace(/upload-\d+/, "<upload>");
       y.url = y.url.replace(/upload-\d+/, "<upload>");

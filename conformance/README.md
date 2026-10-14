@@ -18,6 +18,16 @@ without depending on it.
   `@ardrive/turbo-sdk@2.1.0`, which the package reproduces byte for byte.
 - **`cross-verify.js`**, the package's own exports against arbundles' verifier,
   both ways, both signature types, with tamper rejection.
+- **`wire-parity.js`**, every service call next to the same call from
+  `@ardrive/turbo-sdk`, as each arrives at a capture server. The x402 upload
+  is compared up to the 402, through its JSON envelope: turbo-sdk sends tags
+  in a header the route does not read. The payment is pinned by the next item.
+- **`x402-vectors.json`**, the x402 payment (typed data, signature,
+  `X-PAYMENT`) that `x402@1.2.0`'s own client builds from fixed inputs.
+  `x402.js` (`npm run x402:check`) reproduces each one and recovers each
+  signature with viem. `x402-generate.js` (`npm run x402:generate`) rewrites
+  the file; it installs `x402` into a temporary directory and removes it, so
+  that package and its several hundred dependencies stay out of this lockfile.
 
 `npm ci && npm test` in this directory runs all of it from a clean checkout.
 The dependencies it installs are this directory's, never the package's.
