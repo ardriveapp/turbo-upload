@@ -233,6 +233,23 @@ async function bothReject(label, binary) {
   check("type3 signer that writes v as 0 or 1: arbundles accepts", await arbVerify(Buffer.from(zeroOne.binary)), true);
   check("type3 signer that writes v as 0 or 1: strictV accepts", await ours3(Buffer.from(zeroOne.binary), { strictV: true }), true);
 
+  // The one place type 3 deliberately does not match arbundles: an owner with
+  // the hybrid prefix 0x06 or 0x07, which arbundles accepts and this refuses.
+  const parities = new Set();
+  for (let i = 0; parities.size < 2; i++) {
+    const a = privateKeyToAccount(keyFor(`hybrid owner ${i}`));
+    const owner = Buffer.from(a.publicKey.slice(2), "hex");
+    const prefix = owner[64] & 1 ? 0x07 : 0x06;
+    if (parities.has(prefix)) continue;
+    parities.add(prefix);
+    owner[0] = prefix;
+    const item = pkg.createDataItem({ data: Buffer.from("hybrid owner"), owner, signatureType: 3 });
+    Buffer.from((await a.signMessage({ message: { raw: pkg.getSignatureData(item) } })).slice(2), "hex").copy(item, 2);
+    check(`type3 owner prefix 0x0${prefix}: arbundles accepts`, await arbVerify(item), true);
+    check(`type3 owner prefix 0x0${prefix}: package refuses`, await ours3(item), false);
+    check(`type3 owner prefix 0x0${prefix}: package refuses with strictV`, await ours3(item, { strictV: true }), false);
+  }
+
   console.log(`cross-verification: ${pass} passed, ${failures.length} failed ` +
     `(${cases.length} type 1 cases, ${type3.vectors.length} type 3 and ${type4.vectors.length} type 4 vectors, ` +
     `tamper in data, tags and signature, type 3 owner and malleability, ${misbehaving.length + 1} type 3 signers)`);

@@ -97,15 +97,12 @@ class TurboUpload extends TurboUploadCore {
   /**
    * Verify a serialized data item. Pass `{strictSaltLength:true}` to also pin
    * the PSS salt length. A type 3 item needs `recoverPublicKey`, and the
-   * answer is then a promise. A client with an EVM signer passes the signer's
-   * own, as the web build does, so its answer is always a promise.
+   * answer is then a promise; without it, a type 3 item throws. The signer's
+   * own is never filled in: a promise where the types promise a boolean is
+   * truthy, so `if (!client.verify(item))` would accept anything.
    */
   verify(binary, opts = {}) {
     assertKnownOptions(opts, ["strictSaltLength", "recoverPublicKey", "strictV"], "verify()", TurboValidationError);
-    const signer = this._walletSigner;
-    if (signer && signer.kind === "ethereum" && signer.recoverPublicKey && !opts.recoverPublicKey) {
-      opts = { ...opts, recoverPublicKey: signer.recoverPublicKey };
-    }
     return ans104.verifyDataItem(Buffer.isBuffer(binary) ? binary : Buffer.from(binary), opts);
   }
 }

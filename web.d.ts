@@ -209,7 +209,7 @@ export declare class TurboUpload {
 
   /** The signer's base58 Solana address. */
   readonly address: string;
-  /** The public key: 32 bytes (Solana) or 65 (EVM). For an EVM signer with no `publicKey`, undefined until its first signature. */
+  /** The public key: 32 bytes (Solana) or 65 (EVM). For an EVM signer with no `publicKey`, reading it throws TurboSignerError until its first signature. */
   readonly owner: Uint8Array;
   /** 3 (EVM) or 4 (Solana). */
   readonly signatureType: number;
@@ -473,7 +473,8 @@ export declare function addressFromOwner(owner: Uint8Array): string;
  * rather than answering false. Type 3 needs `recoverPublicKey`, and throws
  * without it, a change from 0.5.0, which returned false for any type 3 item.
  * The v byte is ignored by default, as arbundles ignores it; `strictV`
- * also requires v to be the one that recovers the owner.
+ * also requires v to be the one that recovers the owner. Unlike arbundles, an
+ * owner with the hybrid prefix 0x06 or 0x07 is refused.
  */
 export declare function verifyDataItem(
   binary: Uint8Array,

@@ -186,8 +186,9 @@ over its 48 raw bytes, Keccak-256, the 65-byte layout and the EIP-55 address.
   owner. Without `signer.publicKey`, the client asks the wallet to sign
   `sign this message to connect to your account` once, the text turbo-sdk
   uses, recovers the key from that signature, and checks it belongs to
-  `signer.address`. `client.owner` is set then. A viem account carries its
-  public key, so it is not asked.
+  `signer.address`. Reading `client.owner` before then throws
+  `TurboSignerError`. A viem account carries its public key, so it is not
+  asked.
 - **`signMessage` gets `{ message: { raw } }`**, the 48 raw bytes of the
   item's deep hash, once per item. A wallet that signs the hex text of those
   bytes instead produces a valid signature over the wrong message.
@@ -204,17 +205,21 @@ charged. To pay from one, use an x402 upload instead (§ x402 uploads): the
 service signs the data item, and the wallet only authorizes a payment.
 
 **Verifying.** `verifyDataItem(binary, { recoverPublicKey })` checks a type 3
-item, in both builds, and answers with a promise. On a client with an EVM
-signer, `client.verify(binary)` uses the signer's own `recoverPublicKey`.
-Without one, a type 3 item throws rather than getting an answer for an item
-nothing checked. **This is a change from 0.5.0**, where `verifyDataItem`
+item, in both builds, and answers with a promise. In Node, pass it to
+`client.verify` too: the client does not fill in its signer's, so that
+`client.verify(binary)` stays a synchronous boolean for type 1 and type 4.
+Without `recoverPublicKey`, a type 3 item throws rather than getting an answer
+for an item nothing checked. **This is a change from 0.5.0**, where `verifyDataItem`
 returned `false` for every type 3 item, valid or not.
 
 By default it accepts what arbundles accepts, and arbundles ignores the `v`
 byte entirely: any of its 256 values verifies, so the same content signed by
 the same key has up to 255 more valid ids. `{ strictV: true }` refuses all of
 them but the original: `v` must be 27 or 28 and must be the one that recovers
-the owner. Items this package signs pass both.
+the owner. Items this package signs pass both. One exception to matching
+arbundles, in both modes: the owner must start 0x04, the uncompressed form
+every EVM library writes. arbundles also accepts the hybrid prefixes 0x06 and
+0x07, and this package refuses them.
 
 **Paying.** `getWincForToken` (in wei, or USDC base units for
 `"base-usdc"`), `getBalance`, `getFreeQuota`, `getFundingAddress` and
@@ -638,12 +643,13 @@ service's answer: `id`, `owner`, `payer`, `x402Payment` and the receipt fields.
 `getUnsignedX402Price({ byteCount, tags?, uploadUrl?, network? })` returns the
 price route's answer, `usdcAmount` among it. See § x402 uploads.
 
-### `client.verify(binary, { strictSaltLength? })` → `boolean`
+### `client.verify(binary, { strictSaltLength? })` → `boolean`, and with `{ recoverPublicKey, strictV? }` → `Promise<boolean>`
 
 Structural and cryptographic verification. § The PSS salt length, and why it is
-478 explains what `strictSaltLength` catches. A type 3 item needs
-`{ recoverPublicKey, strictV? }`, and the answer is then a promise
-(§ EVM signers).
+478 explains what `strictSaltLength` catches. Without `recoverPublicKey` the
+answer is a boolean, on every client, and a type 3 item throws. With it, any
+item is checked and the answer is a promise (§ EVM signers). In the web build
+both forms return a promise.
 
 ### Low-level exports
 

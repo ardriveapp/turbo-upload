@@ -96,6 +96,11 @@ async function verifyDataItem(binary, opts = {}) {
   assertKnownOptions(opts, ["verify", "recoverPublicKey", "strictV"], "verifyDataItem()", TurboValidationError);
   const it = core.parseAndCheckStructure(binary);
   if (!it) return false;
+  if (it.signatureType !== core.SIG_TYPE_SOLANA && it.signatureType !== core.SIG_TYPE_ETHEREUM) {
+    throw new TurboValidationError(
+      `The web build verifies type 3 (EVM) and type 4 (Solana) items only; this is type ${it.signatureType}. Use the Node build.`,
+    );
+  }
   const signatureData = core.deepHash(core.signatureDataChunks({ ...it, data: it.rawData }), jsHashes);
   if (it.signatureType === core.SIG_TYPE_ETHEREUM) {
     if (typeof opts.recoverPublicKey !== "function") {
@@ -110,11 +115,6 @@ async function verifyDataItem(binary, opts = {}) {
       recoverPublicKey: opts.recoverPublicKey,
       strictV: opts.strictV,
     });
-  }
-  if (it.signatureType !== core.SIG_TYPE_SOLANA) {
-    throw new TurboValidationError(
-      `The web build verifies type 3 (EVM) and type 4 (Solana) items only; this is type ${it.signatureType}. Use the Node build.`,
-    );
   }
   const message = utf8Encode(toHex(signatureData));
   const publicKey = Uint8Array.from(it.rawOwner);

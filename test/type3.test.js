@@ -167,7 +167,8 @@ test("type 3, a wallet with no public key: the connect message once, then the de
   for (const v of V.vectors) {
     const signer = replaySigner(v, { publicKey: false });
     const client = new TurboUpload({ signer, token: "ethereum" });
-    assert.equal(client.owner, undefined, "unknown until the wallet has signed");
+    assert.throws(() => client.owner, (err) => err instanceof TurboSignerError && /publicKey/.test(err.message),
+      "unknown until the wallet has signed, and says so rather than answering undefined");
     assert.equal(client.getDataItemSize(inputOf(v)), v.expected.signed_item_length, "sized before the key is known");
     const item = await client.signAsync(inputOf(v));
     assert.equal(item.binary.toString("hex"), v.expected.signed_item_hex, v.name);
@@ -332,19 +333,27 @@ test("the signer is only ever handed 48 bytes: anything else is refused before i
   assert.equal(signer.asked.length, 0, "the wallet was never prompted");
 });
 
-test("Node client.verify on an EVM client uses the signer's own recoverPublicKey", { skip }, async () => {
+test("Node client.verify with no options is a synchronous boolean on an EVM client, and throws for type 3", { skip }, async () => {
   const v = V.vectors[8];
   const signer = replaySigner(v);
   const client = new TurboUpload({ signer, token: "base-eth" });
-  const item = Buffer.from(v.expected.signed_item_hex, "hex");
-  const answer = client.verify(item, { strictV: true });
+  const type3 = Buffer.from(v.expected.signed_item_hex, "hex");
+  const seed = crypto.randomBytes(32);
+  const type4 = Buffer.from(new TurboUpload({ jwk: seed, token: "solana" }).sign({ data: "x" }).binary);
+  const { privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 4096 });
+  const type1 = Buffer.from(new TurboUpload({ jwk: privateKey.export({ format: "jwk" }) }).sign({ data: "x" }).binary);
+  for (const [label, item] of [["type 1", type1], ["type 4", type4]]) {
+    assert.equal(client.verify(item), true, `${label} verifies`);
+    const bad = Buffer.from(item);
+    bad[bad.length - 1] ^= 1;
+    assert.equal(client.verify(bad), false, `${label}: a tampered item is a plain false, not a truthy promise`);
+  }
+  assert.throws(() => client.verify(type3), (err) => err instanceof TurboValidationError && /recoverPublicKey/.test(err.message));
+  assert.equal(signer.recoverPublicKey.calls.length, 0, "the signer's recoverPublicKey is not filled in");
+  // With it passed, the promise overload.
+  const answer = client.verify(type3, { recoverPublicKey: signer.recoverPublicKey, strictV: true });
   assert.ok(answer instanceof Promise);
   assert.equal(await answer, true);
-  assert.ok(signer.recoverPublicKey.calls.length > 0, "the signer's recoverPublicKey was used");
-  const flipped = Buffer.from(item);
-  flipped[66] = flipped[66] === 27 ? 28 : 27;
-  assert.equal(await client.verify(flipped), true);
-  assert.equal(await client.verify(flipped, { strictV: true }), false);
 });
 
 test("any v byte verifies by default, as arbundles accepts it, and strictV refuses all but the original", { skip }, async () => {

@@ -20,6 +20,7 @@ const payment = require("./payment.js");
 const chunked = require("./chunked.js");
 const {
   TurboConfigError,
+  TurboSignerError,
   TurboValidationError,
   TurboVerificationError,
 } = require("./errors.js");
@@ -140,7 +141,21 @@ class TurboUploadCore {
         // known until the wallet has signed once; see ./ethereum.js.
         const wallet = ethereum.normalizeEthereumSigner(signer);
         Object.defineProperty(this, "_walletSigner", { value: wallet });
-        this.owner = wallet.publicKey ? platform.output(wallet.publicKey) : undefined;
+        // A getter, so `owner` is never undefined: it throws until the key is known.
+        let owner;
+        Object.defineProperty(this, "owner", {
+          enumerable: true,
+          get() {
+            if (!owner && wallet.publicKey) owner = platform.output(Uint8Array.from(wallet.publicKey));
+            if (!owner) {
+              throw new TurboSignerError(
+                "`owner` is not known yet: this EVM wallet has no `publicKey`, and its key is recovered from its " +
+                  "first signature. Pass `signer.publicKey`, or sign once first.",
+              );
+            }
+            return owner;
+          },
+        });
         this.address = wallet.address;
         this.signatureType = core.SIG_TYPE_ETHEREUM;
         this.#finish({ timeoutMs, retry, uploadUrl, paymentUrl, token: options.token, fetchImpl });
@@ -229,13 +244,10 @@ class TurboUploadCore {
     return !this._walletSigner && typeof this._platform.signSync === "function";
   }
 
-  /** The wallet's public key. An EVM wallet may sign once to reveal it, and `owner` is set then. */
-  async #walletOwner() {
+  /** The wallet's public key. An EVM wallet may sign once to reveal it, and `owner` is readable then. */
+  #walletOwner() {
     const wallet = this._walletSigner;
-    if (wallet.kind !== "ethereum") return wallet.publicKey;
-    const key = await ethereum.ethereumPublicKey(wallet);
-    if (!this.owner) this.owner = this._platform.output(Uint8Array.from(key));
-    return key;
+    return wallet.kind === "ethereum" ? ethereum.ethereumPublicKey(wallet) : Promise.resolve(wallet.publicKey);
   }
 
   /** Have the wallet sign a deep hash; the signature is verified before it is returned. */
@@ -319,7 +331,9 @@ class TurboUploadCore {
     // Building the header validates target, anchor and tags exactly as signing
     // would, so a size is never returned for an item that cannot be made.
     // An EVM wallet's key may not be known yet; only its width matters here.
-    const owner = this.owner ?? new Uint8Array(core.SIG_CONFIG[this.signatureType].ownerLength);
+    const owner = this._walletSigner
+      ? this._walletSigner.publicKey ?? new Uint8Array(core.SIG_CONFIG[this.signatureType].ownerLength)
+      : this.owner;
     const header = this._platform.createDataItem({
       tags, target, anchor, owner, signatureType: this.signatureType,
     });

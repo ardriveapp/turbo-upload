@@ -264,6 +264,10 @@ async function signWithEthereumSigner(signer, signatureData) {
  * the original: v must be 27 or 28 and the one that recovers the owner. A
  * high s is refused in both modes, as arbundles refuses it.
  *
+ * One exception, in both modes: the owner must be 0x04 || X || Y. arbundles
+ * also accepts the hybrid prefixes 0x06 and 0x07, which no EVM library
+ * produces and turbo-sdk never writes; this refuses them.
+ *
  * @param {{owner: Uint8Array, signatureData: Uint8Array, signature: Uint8Array,
  *   recoverPublicKey: Function, strictV?: boolean}} opts
  * @returns {Promise<boolean>}
@@ -292,13 +296,10 @@ async function verifyEthereumSignature({ owner, signatureData, signature, recove
 module.exports = {
   EVM_TOKENS,
   CONNECT_MESSAGE,
-  PUBLIC_KEY_BYTES,
-  SIGNATURE_BYTES,
   hashMessage,
   toChecksumAddress,
   addressFromPublicKey,
   normalizeEthereumSigner,
-  normalizeSignature,
   ethereumPublicKey,
   signWithEthereumSigner,
   verifyEthereumSignature,

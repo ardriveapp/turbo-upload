@@ -9,8 +9,9 @@
  *
  * Keccak-f[1600] with a 136-byte rate. 64-bit lanes are held as two 32-bit
  * halves (low, high), since JavaScript bitwise operators work on 32 bits.
- * `test/keccak.test.js` checks it against @noble/hashes for every length 0 to
- * 699, which crosses the rate boundary five times.
+ * conformance/keccak.js checks it against @noble/hashes for every length 0 to
+ * 699, which crosses the rate boundary five times; test/keccak.test.js
+ * carries known answers.
  */
 
 /** Round constants as [low, high] pairs. */

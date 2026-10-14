@@ -48,8 +48,10 @@ test("EIP-55: the test vectors from the EIP", () => {
   assert.throws(() => toChecksumAddress("0x1234"), /40 hex characters/);
 });
 
-test("the EIP-191 digest prefixes the decimal byte length", () => {
-  const message = new Uint8Array(48).fill(7);
-  const expected = keccak256(Buffer.concat([Buffer.from("\x19Ethereum Signed Message:\n48"), message]));
-  assert.equal(hex(hashMessage(message)), hex(expected));
+test("the EIP-191 digest of 48 raw bytes matches viem's hashMessage", () => {
+  // viem 2.57.2: hashMessage({ raw: new Uint8Array(48).fill(7) })
+  assert.equal(
+    hex(hashMessage(new Uint8Array(48).fill(7))),
+    "934730faea4e1d8063f209b7a765f6d0a42f97fe54b01ed2c922cc8ea85e2c9c",
+  );
 });

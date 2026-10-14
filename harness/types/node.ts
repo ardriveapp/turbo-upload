@@ -68,6 +68,10 @@ async function evmTypes(recover: RecoverPublicKey, signMessage: EvmSigner["signM
   const ok: boolean = await verifyDataItem(item.binary, { recoverPublicKey: recover, strictV: true });
   const sync: boolean = verifyDataItem(item.binary);
   const viaClient: boolean = await evm.verify(item.binary, { recoverPublicKey: recover });
-  return `${ok}${sync}${viaClient}${evm.address}`;
+  // With no options, a plain boolean on an EVM client too: a promise here would be truthy.
+  const plain: boolean = evm.verify(item.binary);
+  // @ts-expect-error the no-options call is not a promise
+  void evm.verify(item.binary).then;
+  return `${ok}${sync}${viaClient}${plain}${evm.address}`;
 }
 void evmTypes;

@@ -299,7 +299,8 @@ export declare class TurboUpload {
   /**
    * The owner field as it appears on the wire: the 512-byte RSA modulus, the
    * 32-byte Ed25519 public key, or the 65-byte secp256k1 public key. For an
-   * EVM signer with no `publicKey`, undefined until its first signature.
+   * EVM signer with no `publicKey`, reading it throws TurboSignerError until
+   * the wallet's first signature.
    */
   readonly owner: Buffer;
   /** 1 (Arweave), 3 (EVM) or 4 (Solana). */
@@ -337,15 +338,16 @@ export declare class TurboUpload {
   /** The free-upload threshold, read live from /v1/info rather than hardcoded. */
   getFreeUploadLimitBytes(options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<number>;
   /**
-   * Verify a serialized type 3 item. `recoverPublicKey` is required for type 3,
-   * and `strictV` also requires v to be the one that recovers the owner.
-   * Without it, a client with an EVM signer uses the signer's own
-   * `recoverPublicKey`, and its answer is a promise whatever the overload says.
+   * Verify a serialized item with `recoverPublicKey`, which type 3 needs. The
+   * answer is a promise. `strictV` also requires v to be the one that recovers
+   * the owner.
    */
   verify(binary: Buffer | Uint8Array, options: { recoverPublicKey: RecoverPublicKey; strictV?: boolean; strictSaltLength?: boolean }): Promise<boolean>;
   /**
-   * Verify a serialized item. `strictSaltLength` also pins the PSS salt length.
-   * Throws for a type 3 item, a change from 0.5.0, which returned false.
+   * Verify a serialized type 1 or type 4 item, synchronously, on any client.
+   * `strictSaltLength` also pins the PSS salt length. Throws for a type 3
+   * item, even on a client with an EVM signer: pass `recoverPublicKey`. 0.5.0
+   * returned false for one.
    */
   verify(binary: Buffer | Uint8Array, options?: { strictSaltLength?: boolean }): boolean;
   /** What `tokenAmount` base units of this client's token buy, in winc (lamports for Solana). */
@@ -593,6 +595,7 @@ export declare function signDataItem(
  * default a type 3 signature is checked as arbundles checks it, ignoring the
  * v byte, so any of its 256 values verifies;
  * `strictV` requires v to be 27 or 28 and the one that recovers the owner.
+ * Unlike arbundles, an owner with the hybrid prefix 0x06 or 0x07 is refused.
  */
 export declare function verifyDataItem(
   binary: Buffer | Uint8Array,
