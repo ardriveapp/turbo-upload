@@ -447,6 +447,9 @@ function getSignatureData(binary, hashes) {
   return deepHash(signatureDataChunks({ ...it, data: it.rawData }), hashes);
 }
 
+/** The tag-byte length an item declares, which parseDataItem does not cap at the item's end. */
+const declaredTagBytes = (it) => it.offsets.dataStart - it.offsets.tagsStart - 16;
+
 /**
  * Structural checks on a serialized item, before any signature check.
  *
@@ -465,7 +468,11 @@ function parseAndCheckStructure(binary) {
   } catch {
     return null;
   }
-  if (it.rawTags.length > MAX_TAG_BYTES) return null;
+  // DE-FACTO: the DECLARED tag-byte length is capped, as arbundles caps it,
+  // not the region parsed out of the item. A declared length that runs past
+  // the end is truncated by parseDataItem, and checking the truncated length
+  // accepted an item arbundles refuses.
+  if (declaredTagBytes(it) > MAX_TAG_BYTES) return null;
   if (it.tagCount > 0) {
     try {
       if (deserializeTags(it.rawTags).length !== it.tagCount) return null;
@@ -496,4 +503,5 @@ module.exports = {
   signatureDataChunks,
   getSignatureData,
   parseAndCheckStructure,
+  declaredTagBytes,
 };

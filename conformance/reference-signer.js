@@ -391,7 +391,8 @@ function signDataItem(jwk, opts = {}) {
 function verifyDataItem(binary, opts = {}) {
   let it;
   try { it = parseDataItem(binary); } catch { return false; }
-  if (it.rawTags.length > MAX_TAG_BYTES) return false;
+  // The declared length, which rawTags truncates at the end of the item.
+  if (it.offsets.dataStart - it.offsets.tagsStart - 16 > MAX_TAG_BYTES) return false;
   if (it.tagCount > 0) {
     try {
       if (deserializeTags(Buffer.from(it.rawTags)).length !== it.tagCount) return false;

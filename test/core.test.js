@@ -95,3 +95,32 @@ test("dataItemByteLength agrees with the item createDataItem builds", () => {
     }
   }
 });
+
+test("a declared tag-byte length past the end of the item is refused, as arbundles refuses it", async () => {
+  const { TurboUpload, createSolanaSigner } = require("../index.js");
+  const web = require("../web.js");
+  const seed = crypto.randomBytes(32);
+  const { verify } = createSolanaSigner(seed);
+  const item = Buffer.from(new TurboUpload({ jwk: seed, token: "solana" }).sign({ data: Buffer.alloc(0) }).binary);
+  assert.equal(verifyDataItem(item), true);
+  // The last 8 bytes are the declared tag-byte length. A high byte flipped
+  // claims a tag region of 2^56 bytes or more: parseDataItem truncates it to
+  // nothing, and checking the truncated length accepted the item.
+  for (const flip of [0x01, 0x80]) {
+    const bad = Buffer.from(item);
+    bad[bad.length - 1] ^= flip;
+    assert.equal(verifyDataItem(bad), false, `Node, last byte ^0x${flip.toString(16)}`);
+    assert.equal(await web.verifyDataItem(new Uint8Array(bad), { verify }), false, `web, last byte ^0x${flip.toString(16)}`);
+  }
+  // Unchanged, and shared with arbundles: a declared length of 1, under the
+  // 4096 cap, still verifies.
+  const low = Buffer.from(item);
+  low[low.length - 8] ^= 0x01;
+  assert.equal(verifyDataItem(low), true);
+  assert.equal(await web.verifyDataItem(new Uint8Array(low), { verify }), true);
+  const jwk = crypto.generateKeyPairSync("rsa", { modulusLength: 4096 }).privateKey.export({ format: "jwk" });
+  const type1 = Buffer.from(new TurboUpload({ jwk }).sign({ data: Buffer.alloc(0) }).binary);
+  assert.equal(verifyDataItem(type1), true);
+  type1[type1.length - 1] ^= 0x01;
+  assert.equal(verifyDataItem(type1), false, "type 1, last byte ^0x1");
+});
