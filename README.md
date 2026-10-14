@@ -49,10 +49,11 @@ and a CLI, and that costs a dependency tree:
 | `@ardrive/turbo-upload@0.3.0` | 1 | 488 KB |
 | `@ardrive/turbo-upload@0.5.0` | 1 | 700 KB |
 | `@ardrive/turbo-upload@0.6.0` | 1 | 784 KB |
+| `@ardrive/turbo-upload@0.7.0` | 1 | 824 KB |
 
-Measured 2026-09-11 (0.5.0: 2026-10-01, 0.6.0: 2026-10-13, from an `npm pack`
-tarball of the release commit) into an empty project with `npm install`, size
-from `du -sk`. Re-run it rather than trusting this table: the numbers move as
+Measured 2026-09-11 (0.5.0: 2026-10-01, 0.6.0 and 0.7.0: 2026-10-13, from an
+`npm pack` tarball of the release commit) into an empty project with
+`npm install`, size from `du -sk`. Re-run it rather than trusting this table: the numbers move as
 either tree changes, and the point is the shape, not the digits.
 
 When you are adding Arweave storage to *someone else's* server, the size of
